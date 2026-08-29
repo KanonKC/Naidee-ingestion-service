@@ -1,0 +1,36 @@
+info:
+  name: Generate Long-lived Token
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: https://graph.facebook.com/v25.0/oauth/access_token?grant_type=fb_exchange_token&client_id={{Meta_Client_ID}}&client_secret={{Meta_Client_Secret}}&fb_exchange_token=EAAUKLDy202IBSYhLbf7HHatI3XIKBqszkbUQGNsNhvqrwcaFk7ra4Hue7LmkLOTKEUIE6tkC0iZAZAhpT2DZACHilZBXf5FhJI9VT36miKZCsdG26EtBce8c5fmnMJHZAJp4X9B32t4UqOtVY7o9tsHLZC8qT7tKTHLZBzcLjXLwBYVm6cZA3o8WCtxEKTc4Dm7DAAD0YUQo5OoM9ZAGkf4bZCpTDpghQw60GGQEfniF7dwZBZABTvITgQoryZBLFFEqgXU7YX6tvZBNdo37EnyvCAZD
+  params:
+    - name: grant_type
+      value: fb_exchange_token
+      type: query
+    - name: client_id
+      value: "{{Meta_Client_ID}}"
+      type: query
+    - name: client_secret
+      value: "{{Meta_Client_Secret}}"
+      type: query
+    - name: fb_exchange_token
+      value: EAAUKLDy202IBSYhLbf7HHatI3XIKBqszkbUQGNsNhvqrwcaFk7ra4Hue7LmkLOTKEUIE6tkC0iZAZAhpT2DZACHilZBXf5FhJI9VT36miKZCsdG26EtBce8c5fmnMJHZAJp4X9B32t4UqOtVY7o9tsHLZC8qT7tKTHLZBzcLjXLwBYVm6cZA3o8WCtxEKTc4Dm7DAAD0YUQo5OoM9ZAGkf4bZCpTDpghQw60GGQEfniF7dwZBZABTvITgQoryZBLFFEqgXU7YX6tvZBNdo37EnyvCAZD
+      type: query
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const data = res.getBody();
+
+        bru.setEnvVar("Meta_Access_Token", data.access_token);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

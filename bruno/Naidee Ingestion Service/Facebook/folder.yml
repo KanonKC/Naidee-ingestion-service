@@ -1,0 +1,16 @@
+info:
+  name: Facebook
+  type: folder
+  seq: 1
+
+request:
+  auth: inherit
+  variables:
+    - name: Meta_Client_ID
+      value: "1418559997006690"
+    - name: Meta_Client_Secret
+      value: 7f456866330f598475c69534df3fae3c
+    - name: IG_Account_ID
+      value: "17841400201755827"
+    - name: IG_Account_Username
+      value: kanonkc

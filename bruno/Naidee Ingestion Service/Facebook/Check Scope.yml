@@ -1,0 +1,25 @@
+info:
+  name: Check Scope
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: https://graph.facebook.com/v25.0/debug_token?input_token={{Meta_Access_Token}}&access_token={{Meta_Access_Token}}
+  headers:
+    - name: Authorization
+      value: "Bearer "
+  params:
+    - name: input_token
+      value: "{{Meta_Access_Token}}"
+      type: query
+    - name: access_token
+      value: "{{Meta_Access_Token}}"
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

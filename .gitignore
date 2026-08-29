@@ -1,0 +1,4 @@
+.env
+ingestion
+ingestion.exe
+*.log

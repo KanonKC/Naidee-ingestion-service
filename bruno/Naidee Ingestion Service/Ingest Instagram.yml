@@ -1,0 +1,22 @@
+info:
+  name: Ingest Instagram
+  type: http
+  seq: 9
+
+http:
+  method: POST
+  url: http://localhost:8082/api/v1/admin/ingest/instagram?wait=true
+  headers:
+    - name: x-api-key
+      value: "{{Admin_Api_Key}} "
+  params:
+    - name: wait
+      value: "true"
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

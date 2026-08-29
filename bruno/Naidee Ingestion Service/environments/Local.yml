@@ -1,0 +1,6 @@
+name: Local
+variables:
+  - secret: true
+    name: Meta_Access_Token
+  - secret: true
+    name: Admin_Api_Key
