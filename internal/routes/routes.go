@@ -80,7 +80,7 @@ func Build(ctx context.Context, cfg *config.Configurations, db *pgxpool.Pool) *A
 	}
 
 	server := &http.Server{
-		Addr:              fmt.Sprintf("0.0.0.0:%d", cfg.Port),
+		Addr:              fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.Port),
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,

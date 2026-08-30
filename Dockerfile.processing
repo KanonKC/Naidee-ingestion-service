@@ -26,8 +26,11 @@ COPY --from=builder /app/processing /app/processing
 USER processing
 
 # The merged config.go defaults PORT to 8082 (cmd/ingestion's original
-# default); cmd/processing needs its own port pinned explicitly here.
+# default) and HTTP_BIND_ADDRESS to 0.0.0.0 (also cmd/ingestion's original,
+# always-public default) — cmd/processing's admin routes must not inherit
+# that, so both are pinned explicitly here rather than left to the default.
 ENV PORT=8083
+ENV HTTP_BIND_ADDRESS=127.0.0.1
 
 EXPOSE 8083
 

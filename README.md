@@ -312,7 +312,7 @@ Not a public API and not for the frontend. It is internal tooling for debugging,
 
 Set `ADMIN_API_KEY` (min 32 chars, same env var name as cmd/ingestion's, but this binary reads its own value from its own `.env`) to enable it. Leave it empty and **the routes are not registered at all**; an unauthenticated trigger would be worse than no trigger.
 
-`HTTP_BIND_ADDRESS` defaults to `127.0.0.1`. In a container set it to `0.0.0.0` and restrict access at the network layer — never expose this port publicly.
+`HTTP_BIND_ADDRESS` is shared with cmd/ingestion and defaults to `0.0.0.0` if unset — cmd/processing's own `.env` (see [.env.example](.env.example)) pins it to `127.0.0.1` explicitly instead, since the admin routes must not be public. If you need it reachable in a container, set `0.0.0.0` and restrict access at the network layer instead — never expose this port publicly by relying on the shared default.
 
 | Route | Purpose |
 |---|---|

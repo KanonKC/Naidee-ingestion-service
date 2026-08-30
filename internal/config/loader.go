@@ -52,10 +52,12 @@ func load() (*Configurations, error) {
 		Env:         constants.MakeEnvironment(os.Getenv("ENV")),
 		Port:        envInt("PORT", 8082),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
-		// Loopback by default: cmd/processing's admin trigger is an internal tool,
-		// never public. Containers that need it reachable set 0.0.0.0 explicitly.
-		// cmd/ingestion does not read this field.
-		BindAddress: envString("HTTP_BIND_ADDRESS", "127.0.0.1"),
+		// Shared by both binaries. Defaults to 0.0.0.0 (matches cmd/ingestion's
+		// prior hardcoded behavior). cmd/processing's admin trigger is an
+		// internal tool that should not be public — its own .env sets
+		// HTTP_BIND_ADDRESS=127.0.0.1 explicitly rather than relying on this
+		// default.
+		BindAddress: envString("HTTP_BIND_ADDRESS", "0.0.0.0"),
 
 		Instagram: InstagramConfigurations{
 			AccessToken: os.Getenv("IG_ACCESS_TOKEN"),
