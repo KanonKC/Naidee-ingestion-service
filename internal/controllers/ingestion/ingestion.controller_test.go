@@ -86,9 +86,9 @@ func (s *stubNotifier) Notify(ctx context.Context, message string) error { retur
 func newController(t *testing.T, ig instagram.Client) *Controller {
 	t.Helper()
 	cfg := &config.Configurations{
-		Instagram: config.InstagramConfigurations{MediaLimit: 25},
-		Cron:      config.CronConfigurations{WorkerConcurrency: 3},
-		Admin:     config.AdminConfigurations{APIKey: testAPIKey},
+		Instagram:     config.InstagramConfigurations{MediaLimit: 25},
+		IngestionCron: config.IngestionCronConfigurations{WorkerConcurrency: 3},
+		Admin:         config.AdminConfigurations{APIKey: testAPIKey},
 	}
 	service := ingestionservice.NewService(
 		cfg,

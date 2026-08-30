@@ -13,16 +13,16 @@ import (
 	// including scratch containers and Windows dev machines.
 	_ "time/tzdata"
 
-	"event/ingestion-service/internal/processing/config"
-	"event/ingestion-service/internal/processing/libs"
-	"event/ingestion-service/internal/processing/logging"
-	"event/ingestion-service/internal/processing/routes"
+	"event/ingestion-service/internal/config"
+	"event/ingestion-service/internal/libs"
+	"event/ingestion-service/internal/logging"
+	"event/ingestion-service/internal/routes"
 )
 
 func main() {
 	// Config is validated before anything else so a missing variable is a boot
 	// failure with a readable message, not a mystery at the first cron tick.
-	cfg, err := config.Load()
+	cfg, err := config.LoadProcessing()
 	if err != nil {
 		// The logger is not configured yet, so this one goes straight to stderr.
 		os.Stderr.WriteString("processing-service failed to start: " + err.Error() + "\n")
@@ -42,7 +42,7 @@ func main() {
 	}
 	defer libs.ClosePostgres()
 
-	app := routes.Build(ctx, cfg, db)
+	app := routes.BuildProcessing(ctx, cfg, db)
 
 	if err := app.Cron.Run(ctx); err != nil {
 		logger.Error(logging.Meta{Message: "Failed to start the scheduler", Error: err})

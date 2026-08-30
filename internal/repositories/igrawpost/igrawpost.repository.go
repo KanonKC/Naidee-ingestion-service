@@ -19,18 +19,17 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 }
 
 // Upsert writes one post idempotently and reports whether the row was newly
-// inserted.
+// inserted. Called by cmd/ingestion.
 //
 // Captions, media urls and the raw payload are refreshed on every run because
 // people edit captions after posting — fixing an event date, adding a signup
 // link. Keeping the first version would leave stale data behind.
 //
-// When the caption actually changed, processed_at is cleared so
-// Processing-Service reprocesses the post on its next run and updates the
-// existing events row. The comparison is on caption_hash rather than the
-// caption itself, and it must be a real change: an unchanged caption re-seen on
-// every six-hourly run would otherwise queue an endless stream of pointless
-// extractions.
+// When the caption actually changed, processed_at is cleared so cmd/processing
+// reprocesses the post on its next run and updates the existing events row. The
+// comparison is on caption_hash rather than the caption itself, and it must be
+// a real change: an unchanged caption re-seen on every six-hourly run would
+// otherwise queue an endless stream of pointless extractions.
 //
 // `xmax = 0` is the Postgres trick that distinguishes an INSERT from an UPDATE
 // in an upsert, so posts_new / posts_updated need no extra query.
@@ -77,4 +76,61 @@ func (r *Repository) Upsert(ctx context.Context, request UpsertIgRawPost) (bool,
 		return false, fmt.Errorf("upsert ig_raw_post: %w", err)
 	}
 	return inserted, nil
+}
+
+// ListUnprocessed returns posts waiting for extraction, oldest first. Called by
+// cmd/processing.
+//
+// Posts with no caption are skipped rather than sent: there is nothing for the
+// model to read, so a request would burn tokens to be told is_event=false.
+// They keep processed_at = NULL, which is honest — they were never processed.
+func (r *Repository) ListUnprocessed(ctx context.Context, limit int) ([]UnprocessedPost, error) {
+	logger := r.logger.SetContext("repository.igRawPost.listUnprocessed", logging.SetContextOptions{Silent: true})
+
+	const query = `
+		SELECT id, posted_at, caption
+		FROM ig_raw_posts
+		WHERE processed_at IS NULL
+		  AND caption IS NOT NULL
+		  AND caption <> ''
+		ORDER BY posted_at
+		LIMIT $1`
+
+	rows, err := r.db.Query(ctx, query, limit)
+	if err != nil {
+		logger.Error(logging.Meta{Message: "Failed to list unprocessed posts", Error: err})
+		return nil, fmt.Errorf("list unprocessed ig_raw_posts: %w", err)
+	}
+	defer rows.Close()
+
+	posts := make([]UnprocessedPost, 0)
+	for rows.Next() {
+		var post UnprocessedPost
+		if err := rows.Scan(&post.ID, &post.PostedAt, &post.Caption); err != nil {
+			logger.Error(logging.Meta{Message: "Failed to scan unprocessed post row", Error: err})
+			return nil, fmt.Errorf("scan ig_raw_posts row: %w", err)
+		}
+		posts = append(posts, post)
+	}
+	if err := rows.Err(); err != nil {
+		logger.Error(logging.Meta{Message: "Failed while iterating unprocessed post rows", Error: err})
+		return nil, fmt.Errorf("iterate ig_raw_posts: %w", err)
+	}
+
+	return posts, nil
+}
+
+// MarkProcessed stamps processed_at so the next run skips this post. It is only
+// ever called after the event row has landed — a post marked processed whose
+// event was never written would be silently lost. Called by cmd/processing.
+func (r *Repository) MarkProcessed(ctx context.Context, id int64) error {
+	logger := r.logger.SetContext("repository.igRawPost.markProcessed", logging.SetContextOptions{Silent: true})
+
+	const query = `UPDATE ig_raw_posts SET processed_at = now() WHERE id = $1`
+
+	if _, err := r.db.Exec(ctx, query, id); err != nil {
+		logger.Error(logging.Meta{Message: "Failed to mark post processed", Data: map[string]any{"raw_post_id": id}, Error: err})
+		return fmt.Errorf("mark ig_raw_post processed: %w", err)
+	}
+	return nil
 }

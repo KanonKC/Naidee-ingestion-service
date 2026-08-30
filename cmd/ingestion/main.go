@@ -22,7 +22,7 @@ import (
 func main() {
 	// Config is validated before anything else so a missing variable is a boot
 	// failure with a readable message, not a mystery at the first cron tick.
-	cfg, err := config.Load()
+	cfg, err := config.LoadIngestion()
 	if err != nil {
 		// The logger is not configured yet, so this one goes straight to stderr.
 		os.Stderr.WriteString("ingestion-service failed to start: " + err.Error() + "\n")

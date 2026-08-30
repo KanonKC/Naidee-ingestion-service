@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"event/ingestion-service/internal/processing/config"
-	"event/ingestion-service/internal/processing/providers/claude"
-	"event/ingestion-service/internal/processing/providers/geocode"
-	"event/ingestion-service/internal/processing/repositories/event"
-	"event/ingestion-service/internal/processing/repositories/igrawpost"
-	"event/ingestion-service/internal/processing/repositories/processingrun"
-	"event/ingestion-service/internal/processing/repositories/venue"
-	processingservice "event/ingestion-service/internal/processing/services/processing"
+	"event/ingestion-service/internal/config"
+	"event/ingestion-service/internal/providers/claude"
+	"event/ingestion-service/internal/providers/geocode"
+	"event/ingestion-service/internal/repositories/event"
+	"event/ingestion-service/internal/repositories/igrawpost"
+	"event/ingestion-service/internal/repositories/processingrun"
+	"event/ingestion-service/internal/repositories/venue"
+	processingservice "event/ingestion-service/internal/services/processing"
 )
 
 const testAdminToken = "0123456789abcdef0123456789abcdef"

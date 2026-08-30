@@ -184,7 +184,7 @@ func (s *Service) processSources(
 		wg        sync.WaitGroup
 		fatalOnce sync.Once
 		fatalErr  error
-		semaphore = make(chan struct{}, s.cfg.Cron.WorkerConcurrency)
+		semaphore = make(chan struct{}, s.cfg.IngestionCron.WorkerConcurrency)
 	)
 
 	for _, source := range sources {

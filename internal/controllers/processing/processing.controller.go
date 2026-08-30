@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"event/ingestion-service/internal/processing/config"
-	"event/ingestion-service/internal/processing/controllers"
-	"event/ingestion-service/internal/processing/logging"
-	processingservice "event/ingestion-service/internal/processing/services/processing"
+	"event/ingestion-service/internal/config"
+	"event/ingestion-service/internal/controllers"
+	"event/ingestion-service/internal/logging"
+	processingservice "event/ingestion-service/internal/services/processing"
 )
 
 type Controller struct {
@@ -41,7 +41,7 @@ func NewController(baseCtx context.Context, cfg *config.Configurations, processi
 func (c *Controller) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	logger := c.logger.SetContext("controller.processing.triggerRun")
 
-	if !controllers.AuthenticateAdmin(r, c.cfg) {
+	if !controllers.AuthenticateProcessingAdmin(r, c.cfg) {
 		logger.Warn(logging.Meta{Message: "Invalid admin token"})
 		respond(w, logger, http.StatusUnauthorized, errorResponse{Error: "invalid admin token"})
 		return
@@ -73,7 +73,7 @@ func (c *Controller) TriggerRun(w http.ResponseWriter, r *http.Request) {
 func (c *Controller) GetRun(w http.ResponseWriter, r *http.Request) {
 	logger := c.logger.SetContext("controller.processing.getRun", logging.SetContextOptions{Silent: true})
 
-	if !controllers.AuthenticateAdmin(r, c.cfg) {
+	if !controllers.AuthenticateProcessingAdmin(r, c.cfg) {
 		logger.Warn(logging.Meta{Message: "Invalid admin token"})
 		respond(w, logger, http.StatusUnauthorized, errorResponse{Error: "invalid admin token"})
 		return

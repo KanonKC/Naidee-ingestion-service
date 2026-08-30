@@ -7,13 +7,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"event/ingestion-service/internal/processing/config"
-	"event/ingestion-service/internal/processing/logging"
-	"event/ingestion-service/internal/processing/providers/claude"
-	"event/ingestion-service/internal/processing/providers/geocode"
-	"event/ingestion-service/internal/processing/repositories/event"
-	"event/ingestion-service/internal/processing/repositories/igrawpost"
-	"event/ingestion-service/internal/processing/repositories/processingrun"
+	"event/ingestion-service/internal/config"
+	"event/ingestion-service/internal/logging"
+	"event/ingestion-service/internal/providers/claude"
+	"event/ingestion-service/internal/providers/geocode"
+	"event/ingestion-service/internal/repositories/event"
+	"event/ingestion-service/internal/repositories/igrawpost"
+	"event/ingestion-service/internal/repositories/processingrun"
 )
 
 // Service orchestrates one processing run: pick up the raw posts nobody has

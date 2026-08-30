@@ -5,7 +5,7 @@ import (
 	stderrors "errors"
 	"fmt"
 
-	"event/ingestion-service/internal/processing/logging"
+	"event/ingestion-service/internal/logging"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

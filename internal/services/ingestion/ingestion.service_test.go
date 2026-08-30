@@ -164,8 +164,8 @@ func (f *fakeNotifier) count() int {
 
 func testConfig() *config.Configurations {
 	return &config.Configurations{
-		Instagram: config.InstagramConfigurations{MediaLimit: 25},
-		Cron:      config.CronConfigurations{WorkerConcurrency: 3},
+		Instagram:     config.InstagramConfigurations{MediaLimit: 25},
+		IngestionCron: config.IngestionCronConfigurations{WorkerConcurrency: 3},
 	}
 }
 

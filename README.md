@@ -21,27 +21,38 @@ The database user configured here needs write access only — no DDL rights.
 
 ## Layout
 
+This repo builds **two binaries** — `cmd/ingestion` and `cmd/processing` (see [Processing](#processing) below) — from one Go module. They share `internal/` as one tree: infrastructure-y concerns (`config`, `cron`, `errors`, `libs`, `logging`, `controllers/middleware.go`, `controllers/system`, `services/system`) are single files/packages used by both binaries; domain-specific concerns sit as sibling subpackages named for the domain they belong to (`controllers/ingestion` next to `controllers/processing`, `services/ingestion` next to `services/processing`, and so on) — never nested under a wrapping `ingestion/` or `processing/` directory.
+
 The layering mirrors `blaze-backend`: **Controller → Service → Repository**, with providers for external APIs and manual dependency wiring in one readable file.
 
 ```
 cmd/ingestion/main.go                  entrypoint: config, db, startup checks, signals
-internal/config/                       typed Configurations + env loader with validation
+cmd/processing/main.go                 entrypoint for the processing binary (see Processing below)
+internal/config/                       ONE Configurations struct + loader covering both binaries;
+                                        LoadIngestion()/LoadProcessing() validate only their own fields
 internal/constants/                    Environment enum
 internal/logging/logger.go             TLogger (slog) with Layer enum and run_id support
 internal/errors/errors.go              TError hierarchy
 internal/libs/                         singletons: postgres pool, slog handler
 internal/providers/instagram/          Business Discovery client + error classification
 internal/providers/googlechat/         fatal-error alerting webhook
+internal/providers/claude/             processing's Message Batches client, prompt, response decoding
+internal/providers/geocode/            processing's Nominatim client
 internal/repositories/igsource/        ig_sources queries
-internal/repositories/igrawpost/       ig_raw_posts upsert
+internal/repositories/igrawpost/       ig_raw_posts — Upsert (ingestion) + ListUnprocessed/MarkProcessed (processing), same table
 internal/repositories/ingestionrun/    ingestion_runs audit log
-internal/services/ingestion/           the orchestrator: worker pool, retries, counters
-internal/services/system/              health check
-internal/controllers/middleware.go     admin API key authentication
-internal/controllers/system/           GET /healthz
+internal/repositories/event/           processing's events upsert
+internal/repositories/venue/           processing's venues lookup and insert
+internal/repositories/processingrun/   processing_runs audit log
+internal/services/ingestion/           the ingestion orchestrator: worker pool, retries, counters
+internal/services/processing/          the processing orchestrator: batch, poll, apply, venues
+internal/services/system/              health check, shared by both binaries
+internal/controllers/middleware.go     AuthenticateIngestionAdmin + AuthenticateProcessingAdmin
+internal/controllers/system/           GET /healthz, shared by both binaries
 internal/controllers/ingestion/        POST /api/v1/admin/ingest/instagram
-internal/cron/cron.go                  scheduler (Asia/Bangkok)
-internal/routes/routes.go              manual dependency wiring, mirrors routes.ts
+internal/controllers/processing/       POST /admin/runs, GET /admin/runs/{id}
+internal/cron/cron.go                  IngestionCron + ProcessingCron schedulers (Asia/Bangkok)
+internal/routes/routes.go              Build() (ingestion) + BuildProcessing() — dependency wiring, mirrors routes.ts
 ```
 
 ### Where this differs from the spec's suggested layout
@@ -185,9 +196,9 @@ Set `RUN_ON_STARTUP=true` to trigger a run immediately instead of waiting for th
 
 ---
 
-# Processing Service
+# Processing
 
-`cmd/processing` (package tree under `internal/processing/`) — merged into this repo, still built and deployed as its own binary/container (`Dockerfile.processing`), with its own `go run ./cmd/processing`.
+`cmd/processing`, sharing `internal/` with `cmd/ingestion` above (see [Layout](#layout)) — still built and deployed as its own binary/container (`Dockerfile.processing`), with its own `go run ./cmd/processing`.
 
 A Go cron job that reads unprocessed rows from `ig_raw_posts`, puts them through the Claude Message Batches API to classify and extract structured event data, geocodes the venue, and lands the result in `events` and `venues`.
 
@@ -212,25 +223,7 @@ The database user configured here needs write access only — no DDL rights.
 
 ## Layout
 
-```
-cmd/processing/main.go                             entrypoint: config, db, cron, signals
-internal/processing/config/                        typed Configurations + env loader with validation
-internal/processing/constants/                     Environment enum
-internal/processing/logging/logger.go               TLogger (slog) with Layer enum and run_id support
-internal/processing/errors/errors.go                 TError hierarchy
-internal/processing/libs/                            singletons: postgres pool, slog handler
-internal/processing/providers/claude/                Message Batches client, prompt, response decoding
-internal/processing/providers/geocode/                Nominatim client with the mandatory rate limit
-internal/processing/repositories/igrawpost/           pending-post queries + processed stamp
-internal/processing/repositories/event/               events upsert
-internal/processing/repositories/venue/               venues lookup and insert
-internal/processing/repositories/processingrun/        processing_runs audit log
-internal/processing/services/processing/               the orchestrator: batch, poll, apply, venues
-internal/processing/services/system/                    health check
-internal/processing/controllers/middleware.go            admin token authentication
-internal/processing/controllers/processing/               manual trigger + run status
-internal/processing/routes/routes.go                       dependency wiring and route table
-```
+See the shared [Layout](#layout) section above — `internal/services/processing/`, `internal/controllers/processing/`, `internal/providers/{claude,geocode}/`, and `internal/repositories/{event,venue,processingrun}/` are processing's own packages; `internal/config`, `internal/cron`, `internal/controllers/middleware.go`, `internal/controllers/system/`, `internal/services/system/`, `internal/repositories/igrawpost/`, and `internal/routes/routes.go` are shared with `cmd/ingestion`.
 
 ## Getting started
 
@@ -271,7 +264,7 @@ The Batch API costs half of what the same requests cost synchronously, and this 
 
 This phase does **exact matching on a normalised name only**. `normalizeVenueName` lowercases, collapses whitespace and trims trailing punctuation — enough to unify `BACC`, `bacc` and `BACC  `, and deliberately not enough to unify `BACC` with `หอศิลป์กรุงเทพ`.
 
-Those two are the same building and **will become two rows in `venues`**. That is accepted for now: fuzzy matching is a later phase, and merging the duplicates then is a backfill that does not disturb existing data. `internal/processing/services/processing/venue_test.go` pins this behaviour so the limitation stays a decision rather than a surprise.
+Those two are the same building and **will become two rows in `venues`**. That is accepted for now: fuzzy matching is a later phase, and merging the duplicates then is a backfill that does not disturb existing data. `internal/services/processing/venue_test.go` pins this behaviour so the limitation stays a decision rather than a surprise.
 
 ## Geocoding
 

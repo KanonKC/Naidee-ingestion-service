@@ -6,8 +6,8 @@ import (
 	"time"
 	"unicode"
 
-	"event/ingestion-service/internal/processing/logging"
-	"event/ingestion-service/internal/processing/repositories/venue"
+	"event/ingestion-service/internal/logging"
+	"event/ingestion-service/internal/repositories/venue"
 )
 
 // normalizeVenueName is the whole of venue matching in this phase: exact match

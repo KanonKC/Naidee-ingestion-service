@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"event/ingestion-service/internal/processing/config"
-	"event/ingestion-service/internal/processing/logging"
+	"event/ingestion-service/internal/config"
+	"event/ingestion-service/internal/logging"
 )
 
 const (

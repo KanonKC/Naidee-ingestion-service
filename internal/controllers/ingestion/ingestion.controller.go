@@ -45,7 +45,7 @@ func NewController(baseCtx context.Context, cfg *config.Configurations, ingestio
 func (c *Controller) Trigger(w http.ResponseWriter, r *http.Request) {
 	logger := c.logger.SetContext("controller.ingestion.trigger")
 
-	if !controllers.AuthenticateAdmin(r, c.cfg) {
+	if !controllers.AuthenticateIngestionAdmin(r, c.cfg) {
 		logger.Warn(logging.Meta{Message: "Invalid admin key"})
 		respond(w, logger, http.StatusUnauthorized, errorResponse{Message: "Invalid admin key"})
 		return

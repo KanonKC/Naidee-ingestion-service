@@ -3,10 +3,10 @@ package processing
 import (
 	"context"
 
-	"event/ingestion-service/internal/processing/repositories/event"
-	"event/ingestion-service/internal/processing/repositories/igrawpost"
-	"event/ingestion-service/internal/processing/repositories/processingrun"
-	"event/ingestion-service/internal/processing/repositories/venue"
+	"event/ingestion-service/internal/repositories/event"
+	"event/ingestion-service/internal/repositories/igrawpost"
+	"event/ingestion-service/internal/repositories/processingrun"
+	"event/ingestion-service/internal/repositories/venue"
 )
 
 // The repository layer is made of concrete structs, as in blaze-backend. These

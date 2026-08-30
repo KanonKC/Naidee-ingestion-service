@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"event/ingestion-service/internal/processing/providers/claude"
-	"event/ingestion-service/internal/processing/providers/geocode"
-	"event/ingestion-service/internal/processing/repositories/processingrun"
+	"event/ingestion-service/internal/providers/claude"
+	"event/ingestion-service/internal/providers/geocode"
+	"event/ingestion-service/internal/repositories/processingrun"
 )
 
 // An empty queue is the common case — the cron fires every thirty minutes and

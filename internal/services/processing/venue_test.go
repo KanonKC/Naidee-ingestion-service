@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"event/ingestion-service/internal/processing/logging"
-	"event/ingestion-service/internal/processing/providers/claude"
-	"event/ingestion-service/internal/processing/providers/geocode"
-	"event/ingestion-service/internal/processing/repositories/venue"
+	"event/ingestion-service/internal/logging"
+	"event/ingestion-service/internal/providers/claude"
+	"event/ingestion-service/internal/providers/geocode"
+	"event/ingestion-service/internal/repositories/venue"
 )
 
 // normalizeVenueName decides which venue rows are considered the same place, so

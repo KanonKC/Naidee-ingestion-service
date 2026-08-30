@@ -25,6 +25,10 @@ COPY --from=builder /app/processing /app/processing
 
 USER processing
 
+# The merged config.go defaults PORT to 8082 (cmd/ingestion's original
+# default); cmd/processing needs its own port pinned explicitly here.
+ENV PORT=8083
+
 EXPOSE 8083
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
