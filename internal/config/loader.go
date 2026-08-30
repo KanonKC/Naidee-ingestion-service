@@ -91,15 +91,16 @@ func load() (*Configurations, error) {
 			GoogleChatWebhookURL: os.Getenv("GOOGLE_CHAT_WEBHOOK_URL"),
 		},
 		Admin: AdminConfigurations{
-			APIKey:   os.Getenv("ADMIN_API_KEY"),
-			APIToken: os.Getenv("ADMIN_API_TOKEN"),
+			APIKey: os.Getenv("ADMIN_API_KEY"),
 		},
 	}
 
 	return cfg, nil
 }
 
-// validateCommon checks the fields every binary in this module depends on.
+// validateCommon checks the fields every binary in this module depends on,
+// including ADMIN_API_KEY: both cmd/ingestion and cmd/processing guard their
+// manual trigger with the same x-api-key mechanism.
 func (c *Configurations) validateCommon() []string {
 	var problems []string
 	if c.DatabaseURL == "" {
@@ -107,6 +108,9 @@ func (c *Configurations) validateCommon() []string {
 	}
 	if c.Port < 1 || c.Port > 65535 {
 		problems = append(problems, fmt.Sprintf("PORT must be between 1 and 65535, got %d", c.Port))
+	}
+	if c.Admin.APIKey != "" && len(c.Admin.APIKey) < 32 {
+		problems = append(problems, "ADMIN_API_KEY must be at least 32 characters (leave it empty to disable the manual trigger)")
 	}
 	return problems
 }
@@ -135,9 +139,6 @@ func (c *Configurations) validateIngestion() error {
 	}
 	if c.IngestionCron.WorkerConcurrency < 1 {
 		problems = append(problems, "WORKER_CONCURRENCY must be >= 1")
-	}
-	if c.Admin.APIKey != "" && len(c.Admin.APIKey) < 32 {
-		problems = append(problems, "ADMIN_API_KEY must be at least 32 characters (leave it empty to disable the manual trigger)")
 	}
 
 	return problemsToError(problems)
@@ -182,9 +183,6 @@ func (c *Configurations) validateProcessing() error {
 	}
 	if c.ProcessingCron.Schedule == "" {
 		problems = append(problems, "PROCESSING_CRON_SCHEDULE is required")
-	}
-	if c.Admin.APIToken != "" && len(c.Admin.APIToken) < 32 {
-		problems = append(problems, "ADMIN_API_TOKEN must be at least 32 characters (leave it empty to disable the manual trigger)")
 	}
 
 	return problemsToError(problems)

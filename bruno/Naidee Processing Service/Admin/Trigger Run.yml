@@ -7,8 +7,8 @@ http:
   method: POST
   url: "{{Base_URL}}/admin/runs"
   headers:
-    - name: X-Admin-Token
-      value: "{{Admin_Api_Token}}"
+    - name: x-api-key
+      value: "{{Admin_Api_Key}}"
   auth: inherit
 
 runtime:

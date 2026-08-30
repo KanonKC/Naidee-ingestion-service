@@ -1,5 +1,5 @@
 info:
-  name: Trigger Run - Missing Token
+  name: Trigger Run - Missing Key
   type: http
   seq: 3
 
@@ -10,7 +10,7 @@ http:
     # Deliberately empty. The admin routes must refuse an unauthenticated
     # caller, and this is how you check that they still do — a 401 here is the
     # pass, anything else means the guard has come loose.
-    - name: X-Admin-Token
+    - name: x-api-key
       value: ""
   auth: inherit
 

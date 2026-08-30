@@ -47,7 +47,7 @@ internal/repositories/processingrun/   processing_runs audit log
 internal/services/ingestion/           the ingestion orchestrator: worker pool, retries, counters
 internal/services/processing/          the processing orchestrator: batch, poll, apply, venues
 internal/services/system/              health check, shared by both binaries
-internal/controllers/middleware.go     AuthenticateIngestionAdmin + AuthenticateProcessingAdmin
+internal/controllers/middleware.go     AuthenticateAdmin — shared x-api-key check for both binaries
 internal/controllers/system/           GET /healthz, shared by both binaries
 internal/controllers/ingestion/        POST /api/v1/admin/ingest/instagram
 internal/controllers/processing/       POST /admin/runs, GET /admin/runs/{id}
@@ -308,9 +308,9 @@ This is an **in-process** flag and protects a single replica, which is what this
 
 ## Admin API
 
-Not a public API and not for the frontend. It is internal tooling for debugging, backfilling, and demos, and it is authenticated by a single shared token compared in constant time — there is no user/role system because there is one operator.
+Not a public API and not for the frontend. It is internal tooling for debugging, backfilling, and demos, authenticated the same way as cmd/ingestion's manual trigger: a shared `x-api-key` header compared in constant time (see [AuthenticateAdmin](#layout)) — there is no user/role system because there is one operator.
 
-Set `ADMIN_API_TOKEN` (min 32 chars) to enable it. Leave it empty and **the routes are not registered at all**; an unauthenticated trigger would be worse than no trigger.
+Set `ADMIN_API_KEY` (min 32 chars, same env var name as cmd/ingestion's, but this binary reads its own value from its own `.env`) to enable it. Leave it empty and **the routes are not registered at all**; an unauthenticated trigger would be worse than no trigger.
 
 `HTTP_BIND_ADDRESS` defaults to `127.0.0.1`. In a container set it to `0.0.0.0` and restrict access at the network layer — never expose this port publicly.
 
@@ -323,18 +323,18 @@ Set `ADMIN_API_TOKEN` (min 32 chars) to enable it. Leave it empty and **the rout
 `POST /admin/runs` answers immediately and never waits for the batch — a run can take hours. Poll `GET /admin/runs/{id}` for the outcome. No extra rate limiting is needed: concurrent calls all collide on the same guard and get `409`.
 
 ```bash
-curl -X POST http://127.0.0.1:8083/admin/runs -H "X-Admin-Token: $ADMIN_API_TOKEN"
+curl -X POST http://127.0.0.1:8083/admin/runs -H "x-api-key: $ADMIN_API_KEY"
 ```
 
 ### Bruno collection
 
-`bruno/Naidee Processing Service` covers the whole surface. Open it, pick the **Local** environment, and set `Admin_Api_Token` to the same value as the service's `ADMIN_API_TOKEN` — it is the only thing you have to fill in.
+`bruno/Naidee Processing Service` covers the whole surface. Open it, pick the **Local** environment, and set `Admin_Api_Key` to the same value as the service's `ADMIN_API_KEY` — it is the only thing you have to fill in.
 
 | Folder | Request | What it is for |
 |---|---|---|
 | Admin | Trigger Run | starts a run; captures `run_id` into the environment |
 | Admin | Get Run | polls the run Trigger Run just captured |
-| Admin | Trigger Run - Missing Token | sends no token — a `401` here is the pass |
+| Admin | Trigger Run - Missing Key | sends no key — a `401` here is the pass |
 | Admin | Get Run - Not Found | asks for a run that does not exist — expects `404` |
 | System | Healthz | database reachability |
 

@@ -85,10 +85,12 @@ type AlertConfigurations struct {
 }
 
 type AdminConfigurations struct {
-	// APIKey guards cmd/ingestion's manual trigger. When empty that route is not
-	// registered at all — an unauthenticated trigger is worse than no trigger.
+	// APIKey guards both binaries' manual trigger, checked via the same
+	// x-api-key header and AuthenticateAdmin middleware. cmd/ingestion and
+	// cmd/processing each read ADMIN_API_KEY from their own environment, so in
+	// practice they authenticate against independent secret values even though
+	// the field and mechanism are shared. When empty, that binary's admin
+	// route(s) are not registered at all — an unauthenticated trigger is worse
+	// than no trigger.
 	APIKey string
-	// APIToken guards cmd/processing's manual trigger. Same rule: empty disables
-	// the route rather than registering it unauthenticated.
-	APIToken string
 }

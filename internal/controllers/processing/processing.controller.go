@@ -41,9 +41,9 @@ func NewController(baseCtx context.Context, cfg *config.Configurations, processi
 func (c *Controller) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	logger := c.logger.SetContext("controller.processing.triggerRun")
 
-	if !controllers.AuthenticateProcessingAdmin(r, c.cfg) {
-		logger.Warn(logging.Meta{Message: "Invalid admin token"})
-		respond(w, logger, http.StatusUnauthorized, errorResponse{Error: "invalid admin token"})
+	if !controllers.AuthenticateAdmin(r, c.cfg) {
+		logger.Warn(logging.Meta{Message: "Invalid admin key"})
+		respond(w, logger, http.StatusUnauthorized, errorResponse{Error: "invalid admin key"})
 		return
 	}
 
@@ -73,9 +73,9 @@ func (c *Controller) TriggerRun(w http.ResponseWriter, r *http.Request) {
 func (c *Controller) GetRun(w http.ResponseWriter, r *http.Request) {
 	logger := c.logger.SetContext("controller.processing.getRun", logging.SetContextOptions{Silent: true})
 
-	if !controllers.AuthenticateProcessingAdmin(r, c.cfg) {
-		logger.Warn(logging.Meta{Message: "Invalid admin token"})
-		respond(w, logger, http.StatusUnauthorized, errorResponse{Error: "invalid admin token"})
+	if !controllers.AuthenticateAdmin(r, c.cfg) {
+		logger.Warn(logging.Meta{Message: "Invalid admin key"})
+		respond(w, logger, http.StatusUnauthorized, errorResponse{Error: "invalid admin key"})
 		return
 	}
 

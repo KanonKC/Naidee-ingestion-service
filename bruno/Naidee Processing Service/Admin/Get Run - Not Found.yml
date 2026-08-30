@@ -7,8 +7,8 @@ http:
   method: GET
   url: "{{Base_URL}}/admin/runs/999999"
   headers:
-    - name: X-Admin-Token
-      value: "{{Admin_Api_Token}}"
+    - name: x-api-key
+      value: "{{Admin_Api_Key}}"
   auth: inherit
 
 settings:

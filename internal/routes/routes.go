@@ -142,13 +142,13 @@ func BuildProcessing(ctx context.Context, cfg *config.Configurations, db *pgxpoo
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", systemCtrl.Health)
 
-	if cfg.Admin.APIToken != "" {
+	if cfg.Admin.APIKey != "" {
 		mux.HandleFunc("POST /admin/runs", processingCtrl.TriggerRun)
 		mux.HandleFunc("GET /admin/runs/{id}", processingCtrl.GetRun)
 		logger.Info(logging.Meta{Message: "Admin routes enabled", Data: map[string]any{"routes": []string{"POST /admin/runs", "GET /admin/runs/{id}"}}})
 	} else {
 		// Registering them unauthenticated would be worse than not having them.
-		logger.Warn(logging.Meta{Message: "Admin routes disabled: ADMIN_API_TOKEN is not set"})
+		logger.Warn(logging.Meta{Message: "Admin routes disabled: ADMIN_API_KEY is not set"})
 	}
 
 	server := &http.Server{

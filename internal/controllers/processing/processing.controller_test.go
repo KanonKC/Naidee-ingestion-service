@@ -30,7 +30,7 @@ func testConfig() *config.Configurations {
 			PollInterval: time.Millisecond,
 			PollTimeout:  5 * time.Second,
 		},
-		Admin: config.AdminConfigurations{APIToken: testAdminToken},
+		Admin: config.AdminConfigurations{APIKey: testAdminToken},
 	}
 }
 
@@ -42,7 +42,7 @@ func TestTriggerRunRejectsAMissingToken(t *testing.T) {
 	for _, header := range []string{"", "wrong-token"} {
 		request := httptest.NewRequest(http.MethodPost, "/admin/runs", nil)
 		if header != "" {
-			request.Header.Set("X-Admin-Token", header)
+			request.Header.Set("x-api-key", header)
 		}
 		recorder := httptest.NewRecorder()
 
@@ -181,7 +181,7 @@ func TestGetRunRejectsANonNumericID(t *testing.T) {
 
 func authorizedRequest(method, target string) *http.Request {
 	request := httptest.NewRequest(method, target, nil)
-	request.Header.Set("X-Admin-Token", testAdminToken)
+	request.Header.Set("x-api-key", testAdminToken)
 	return request
 }
 
