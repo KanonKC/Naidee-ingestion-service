@@ -1,14 +1,18 @@
 info:
-  name: Trigger Run
+  name: Trigger Ingestion
   type: http
   seq: 1
 
 http:
   method: POST
-  url: http://localhost:8082/api/v1/admin/processing/runs
+  url: http://localhost:8082/api/v1/admin/ingestion/trigger?wait=true
   headers:
     - name: x-api-key
       value: "{{Admin_Api_Key}}"
+  params:
+    - name: wait
+      value: "true"
+      type: query
   auth: inherit
 
 runtime:

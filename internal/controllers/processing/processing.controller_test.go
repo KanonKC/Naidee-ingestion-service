@@ -54,6 +54,32 @@ func TestTriggerRunRejectsAMissingToken(t *testing.T) {
 	}
 }
 
+// A non-numeric ?limit= is a caller error the trigger must reject outright,
+// not silently fall back on.
+func TestTriggerRunRejectsANonNumericLimit(t *testing.T) {
+	controller := newTestController(t, nil)
+
+	recorder := httptest.NewRecorder()
+	controller.TriggerRun(recorder, authorizedRequest(http.MethodPost, "/api/v1/admin/processing/trigger?limit=abc"))
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d (%s)", recorder.Code, recorder.Body)
+	}
+}
+
+// A limit outside what a single batch can hold is also a 400 — the service's
+// ErrInvalidLimit surfaces here, it doesn't get clamped or ignored.
+func TestTriggerRunRejectsAnOutOfRangeLimit(t *testing.T) {
+	controller := newTestController(t, nil)
+
+	recorder := httptest.NewRecorder()
+	controller.TriggerRun(recorder, authorizedRequest(http.MethodPost, "/api/v1/admin/processing/trigger?limit=-1"))
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d (%s)", recorder.Code, recorder.Body)
+	}
+}
+
 func TestTriggerRunAcceptsAndReturnsARunID(t *testing.T) {
 	controller := newTestController(t, nil)
 

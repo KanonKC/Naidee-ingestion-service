@@ -85,19 +85,19 @@ func Build(ctx context.Context, cfg *config.Configurations, db *pgxpool.Pool) *A
 	ingestionCtrl := ingestioncontroller.NewController(ctx, cfg, ingestionService)
 	processingCtrl := processingcontroller.NewController(ctx, cfg, processingService)
 
-	// Routes — this service is write-side only. /healthz is for container
+	// Routes — this service is write-side only. /health is for container
 	// health checks; the admin routes are internal tooling and never public.
 	// The read API that serves the website is a separate service entirely.
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", systemCtrl.Health)
+	mux.HandleFunc("GET /health", systemCtrl.Health)
 
 	if cfg.Admin.APIKey != "" {
 		mux.HandleFunc("POST /api/v1/admin/ingestion/trigger", ingestionCtrl.Trigger)
-		mux.HandleFunc("POST /api/v1/admin/processing/runs", processingCtrl.TriggerRun)
+		mux.HandleFunc("POST /api/v1/admin/processing/trigger", processingCtrl.TriggerRun)
 		mux.HandleFunc("GET /api/v1/admin/processing/runs/{id}", processingCtrl.GetRun)
 		logger.Info(logging.Meta{Message: "Admin routes enabled", Data: map[string]any{"routes": []string{
 			"POST /api/v1/admin/ingestion/trigger",
-			"POST /api/v1/admin/processing/runs",
+			"POST /api/v1/admin/processing/trigger",
 			"GET /api/v1/admin/processing/runs/{id}",
 		}}})
 	} else {

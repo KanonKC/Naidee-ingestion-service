@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"event/ingestion-service/internal/config"
 	"event/ingestion-service/internal/providers/claude"
 	"event/ingestion-service/internal/providers/geocode"
 	"event/ingestion-service/internal/repositories/processingrun"
@@ -329,14 +330,14 @@ func TestTriggerAsyncReportsTheRunInProgress(t *testing.T) {
 
 	service := newTestService(postRepo, newFakeEventRepo(), newFakeVenueRepo(), newFakeProcessingRunRepo(), batch, &fakeGeocoder{})
 
-	firstID, started, err := service.TriggerAsync(context.Background())
+	firstID, started, err := service.TriggerAsync(context.Background(), 0)
 	if err != nil || !started {
 		t.Fatalf("expected the first trigger to start: started=%v err=%v", started, err)
 	}
 
 	waitFor(t, func() bool { return batch.submitCount() == 1 })
 
-	secondID, started, err := service.TriggerAsync(context.Background())
+	secondID, started, err := service.TriggerAsync(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("a conflicting trigger is not an error: %v", err)
 	}
@@ -355,10 +356,58 @@ func TestTriggerAsyncReportsTheRunInProgress(t *testing.T) {
 
 	// Once the run is done the guard must have been released, or the service
 	// would refuse every future run for the rest of its life.
-	if _, started, _ := service.TriggerAsync(context.Background()); !started {
+	if _, started, _ := service.TriggerAsync(context.Background(), 0); !started {
 		t.Fatal("expected the guard to be released after the run finished")
 	}
 	service.WaitIdle(waitCtx)
+}
+
+// A caller-supplied limit must actually cap what gets submitted, not just be
+// accepted and ignored.
+func TestTriggerAsyncRespectsACustomLimit(t *testing.T) {
+	postRepo := newFakeIgRawPostRepo(samplePost(1), samplePost(2), samplePost(3))
+	runRepo := newFakeProcessingRunRepo()
+	batch := &fakeBatchClient{
+		results: []claude.ExtractionResult{{RawPostID: 1, IsEvent: false, Confidence: claude.ConfidenceLow}},
+	}
+
+	service := newTestService(postRepo, newFakeEventRepo(), newFakeVenueRepo(), runRepo, batch, &fakeGeocoder{})
+
+	runID, started, err := service.TriggerAsync(context.Background(), 1)
+	if err != nil || !started {
+		t.Fatalf("expected the trigger to start: started=%v err=%v", started, err)
+	}
+
+	waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	service.WaitIdle(waitCtx)
+
+	run, err := runRepo.Get(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("could not read the run back: %v", err)
+	}
+	if run.PostsSubmitted != 1 {
+		t.Fatalf("expected limit=1 to submit exactly 1 post, got %d", run.PostsSubmitted)
+	}
+}
+
+// A limit outside [1, MaxBatchRequests] is a caller error, not silently
+// clamped — the run row is never even opened for one.
+func TestTriggerAsyncRejectsAnOutOfRangeLimit(t *testing.T) {
+	postRepo := newFakeIgRawPostRepo(samplePost(1))
+	runRepo := newFakeProcessingRunRepo()
+	batch := &fakeBatchClient{}
+
+	service := newTestService(postRepo, newFakeEventRepo(), newFakeVenueRepo(), runRepo, batch, &fakeGeocoder{})
+
+	for _, limit := range []int{-1, config.MaxBatchRequests + 1} {
+		if _, _, err := service.TriggerAsync(context.Background(), limit); !errors.Is(err, ErrInvalidLimit) {
+			t.Fatalf("limit=%d: expected ErrInvalidLimit, got %v", limit, err)
+		}
+	}
+	if batch.submitCount() != 0 {
+		t.Fatal("an invalid limit must never reach the batch client")
+	}
 }
 
 // waitFor polls a condition instead of sleeping a fixed amount, so the test is

@@ -2,6 +2,7 @@ package processing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -85,12 +86,21 @@ func (s *Service) Run(ctx context.Context) (*RunSummary, error) {
 		s.running.Store(false)
 	}()
 
-	return s.run(ctx)
+	return s.run(ctx, s.cfg.LLM.PostLimit)
 }
+
+// ErrInvalidLimit is returned by TriggerAsync when the caller-supplied limit
+// falls outside what a single batch can hold.
+var ErrInvalidLimit = errors.New("limit must be between 1 and the Batch API cap")
 
 // TriggerAsync starts a run in the background and reports whether it started,
 // along with the id of the relevant run — the new one when it started, the one
 // already in flight when it did not.
+//
+// limit caps how many pending posts this one run submits. Pass 0 to fall back
+// to LLM_POST_LIMIT (the cron's default); any other value must be between 1
+// and config.MaxBatchRequests or ErrInvalidLimit is returned before a run row
+// is even opened.
 //
 // The manual trigger endpoint uses this: a run can take hours, which is far
 // longer than a request should be held open, so the caller gets a run id and
@@ -98,8 +108,14 @@ func (s *Service) Run(ctx context.Context) (*RunSummary, error) {
 //
 // ctx must outlive the request — pass the application context, not
 // r.Context(), or the run is cancelled the moment the response is written.
-func (s *Service) TriggerAsync(ctx context.Context) (runID int64, started bool, err error) {
+func (s *Service) TriggerAsync(ctx context.Context, limit int) (runID int64, started bool, err error) {
 	logger := s.logger.SetContext("service.processing.triggerAsync", logging.SetContextOptions{Silent: true})
+
+	if limit == 0 {
+		limit = s.cfg.LLM.PostLimit
+	} else if limit < 0 || limit > config.MaxBatchRequests {
+		return 0, false, ErrInvalidLimit
+	}
 
 	if !s.running.CompareAndSwap(false, true) {
 		logger.Warn(logging.Meta{Message: "processing run skipped, previous run still in progress"})
@@ -123,7 +139,7 @@ func (s *Service) TriggerAsync(ctx context.Context) (runID int64, started bool, 
 			s.inFlight.Done()
 			s.running.Store(false)
 		}()
-		if _, err := s.runWithID(ctx, runID); err != nil {
+		if _, err := s.runWithID(ctx, runID, limit); err != nil {
 			logger.Error(logging.Meta{Message: "Manually triggered processing run failed", Error: err})
 		}
 	}()
@@ -156,7 +172,7 @@ func (s *Service) WaitIdle(ctx context.Context) {
 
 // run opens the processing_runs row and delegates. Every caller must already
 // hold the running flag.
-func (s *Service) run(ctx context.Context) (*RunSummary, error) {
+func (s *Service) run(ctx context.Context, limit int) (*RunSummary, error) {
 	logger := s.logger.SetContext("service.processing.run", logging.SetContextOptions{Silent: true})
 
 	runID, err := s.processingRunRepo.Create(ctx, processingrun.StatusSubmitted)
@@ -166,7 +182,7 @@ func (s *Service) run(ctx context.Context) (*RunSummary, error) {
 	}
 	s.currentRunID.Store(runID)
 
-	return s.runWithID(ctx, runID)
+	return s.runWithID(ctx, runID, limit)
 }
 
 // runWithID is the body of a run, against an already-open processing_runs row.
@@ -175,12 +191,12 @@ func (s *Service) run(ctx context.Context) (*RunSummary, error) {
 // loop, one pass over the results. The expensive part (the model) is already
 // batched, and the second most expensive part (geocoding) is capped at one
 // call per second, so there is nothing here that concurrency would speed up.
-func (s *Service) runWithID(ctx context.Context, runID int64) (*RunSummary, error) {
+func (s *Service) runWithID(ctx context.Context, runID int64, limit int) (*RunSummary, error) {
 	logger := s.logger.SetContext("service.processing.run", logging.SetContextOptions{Silent: true}).With("run_id", runID)
 
 	counters := &runCounters{}
 
-	posts, err := s.igRawPostRepo.ListUnprocessed(ctx, s.cfg.LLM.PostLimit)
+	posts, err := s.igRawPostRepo.ListUnprocessed(ctx, limit)
 	if err != nil {
 		logger.Error(logging.Meta{Message: "Failed to load pending posts", Error: err})
 		return s.finishRun(ctx, logger, runID, nil, processingrun.StatusFailed, counters, err), err

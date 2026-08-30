@@ -1,7 +1,7 @@
 info:
   name: Ingest Instagram
   type: http
-  seq: 9
+  seq: 4
 
 http:
   method: POST

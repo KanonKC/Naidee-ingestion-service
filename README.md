@@ -2,7 +2,7 @@
 
 One Go service, one process, one container. It pulls posts from whitelisted Instagram Business/Creator accounts, and turns the raw posts it collects into structured event data — ingest and process are two jobs inside the same service, not two separate services. Neither is more important than the other; think of them as two widgets living in the same app, the way TRAILBLAZER-backend groups unrelated features under one roof.
 
-**Write-side only.** There is no public read API. It exposes `/healthz` for container health checks and three admin-only routes for manually triggering or inspecting a run.
+**Write-side only.** There is no public read API. It exposes `/health` for container health checks and three admin-only routes for manually triggering or inspecting a run.
 
 ## Responsibility
 
@@ -55,9 +55,9 @@ internal/services/ingestion/           the ingestion orchestrator: worker pool, 
 internal/services/processing/          the processing orchestrator: batch, poll, apply, venues
 internal/services/system/              health check
 internal/controllers/middleware.go     AuthenticateAdmin — one x-api-key check for every admin route
-internal/controllers/system/           GET /healthz
+internal/controllers/system/           GET /health
 internal/controllers/ingestion/        POST /api/v1/admin/ingestion/trigger
-internal/controllers/processing/       POST /api/v1/admin/processing/runs, GET /api/v1/admin/processing/runs/{id}
+internal/controllers/processing/       POST /api/v1/admin/processing/trigger, GET /api/v1/admin/processing/runs/{id}
 internal/cron/cron.go                  IngestionCron + ProcessingCron — two independent schedules, one process (Asia/Bangkok)
 internal/routes/routes.go              Build() — dependency wiring for the whole service, mirrors routes.ts
 ```
@@ -106,7 +106,7 @@ Everything comes from one environment and is validated at startup — a missing 
 
 All under one server, one port, one API key.
 
-### `GET /healthz`
+### `GET /health`
 
 200 when the database is reachable, 503 otherwise. For container health checks only.
 
@@ -156,13 +156,21 @@ A finished run whose `status` is `failed` still comes back as `200`: the request
 
 Synchronous runs are capped at 15 minutes. Both modes are cancelled on shutdown, and shutdown waits for an in-flight manual run so its `ingestion_runs` row does not stay stuck on `running`.
 
-### `POST /api/v1/admin/processing/runs`
+### `POST /api/v1/admin/processing/trigger`
 
 Starts a processing run on demand. `202` with a `run_id`, or `409` naming the run already in progress — the cron and the trigger go through the same `atomic.Bool` compare-and-swap, so at most one processing run is ever in flight.
 
 ```bash
-curl -X POST http://localhost:8082/api/v1/admin/processing/runs -H "x-api-key: $ADMIN_API_KEY"
+curl -X POST http://localhost:8082/api/v1/admin/processing/trigger -H "x-api-key: $ADMIN_API_KEY"
 ```
+
+Add `?limit=N` to cap how many pending posts this one run submits, overriding `LLM_POST_LIMIT` for just this run — useful for a small test run without waiting on the whole backlog:
+
+```bash
+curl -X POST "http://localhost:8082/api/v1/admin/processing/trigger?limit=10" -H "x-api-key: $ADMIN_API_KEY"
+```
+
+`limit` must be between 1 and the Batch API's cap (100,000) or the request is a `400`; omit it (or pass `0`) to use `LLM_POST_LIMIT`.
 
 Never waits for the batch — a run can take hours. Poll the route below for the outcome.
 
@@ -302,14 +310,12 @@ Whether an edited caption *should* also reset an admin's approve/reject decision
 
 | Folder | Request | What it is for |
 |---|---|---|
-| — | Ingest Instagram | triggers an ingestion run |
-| Admin | Trigger Run | starts a processing run; captures `run_id` into the environment |
-| Admin | Get Run | polls the run Trigger Run just captured |
-| Admin | Trigger Run - Missing Key | sends no key — a `401` here is the pass |
-| Admin | Get Run - Not Found | asks for a run that does not exist — expects `404` |
-| Admin | Healthz | database reachability |
+| System | Health | database reachability |
+| Admin | Trigger Ingestion | triggers an ingestion run (`?wait=true`) |
+| Admin | Trigger Processing | starts a processing run; captures `run_id` into the environment. Has a disabled `limit` query param to try |
+| Admin | Get Processing Status | polls the run Trigger Processing just captured |
 
-Trigger Run writes `run_id` into `Run_Id` after every response, so **Trigger Run → Get Run** works back to back with nothing to copy by hand. It captures the id from a `409` too, which is the case you most want to look at: that response names the run already in the way.
+Trigger Processing writes `run_id` into `Run_Id` after every response, so **Trigger Processing → Get Processing Status** works back to back with nothing to copy by hand. It captures the id from a `409` too, which is the case you most want to look at: that response names the run already in the way.
 
 Requests point at `http://localhost:8082`, hardcoded per-request rather than a `Base_URL` variable, matching this collection's existing convention.
 

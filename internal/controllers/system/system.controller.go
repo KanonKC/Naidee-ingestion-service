@@ -17,7 +17,7 @@ func NewController(systemService *systemservice.Service) *Controller {
 	return &Controller{systemService: systemService, logger: logging.New(logging.LayerController)}
 }
 
-// Health backs GET /healthz. It is for container health checks only — this
+// Health backs GET /health. It is for container health checks only — this
 // service exposes no public API.
 func (c *Controller) Health(w http.ResponseWriter, r *http.Request) {
 	logger := c.logger.SetContext("controller.system.health", logging.SetContextOptions{Silent: true})

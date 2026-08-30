@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -32,12 +33,16 @@ func NewController(baseCtx context.Context, cfg *config.Configurations, processi
 	}
 }
 
-// TriggerRun backs POST /api/v1/admin/processing/runs — a manual run, for debugging, backfilling,
+// TriggerRun backs POST /api/v1/admin/processing/trigger — a manual run, for debugging, backfilling,
 // or demoing without waiting for the next cron tick.
 //
 // It answers immediately and never waits for the batch: a run can take hours,
 // which is far longer than any reasonable request timeout. The caller gets a
 // run id and polls GET /api/v1/admin/processing/runs/{id}.
+//
+// ?limit=N caps how many pending posts this one run submits, overriding
+// LLM_POST_LIMIT for just this run. Omit it (or pass 0) to use the configured
+// default.
 func (c *Controller) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	logger := c.logger.SetContext("controller.processing.triggerRun")
 
@@ -47,7 +52,17 @@ func (c *Controller) TriggerRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	runID, started, err := c.processingService.TriggerAsync(c.baseCtx)
+	limit, err := parseLimit(r)
+	if err != nil {
+		respond(w, logger, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+
+	runID, started, err := c.processingService.TriggerAsync(c.baseCtx, limit)
+	if errors.Is(err, processingservice.ErrInvalidLimit) {
+		respond(w, logger, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
 	if err != nil {
 		logger.Error(logging.Meta{Message: "Manual processing run could not start", Error: err})
 		respond(w, logger, http.StatusInternalServerError, errorResponse{Error: "processing run could not start"})
@@ -97,6 +112,21 @@ func (c *Controller) GetRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respond(w, logger, http.StatusOK, run)
+}
+
+// parseLimit reads ?limit=N. A missing or empty value means "use the
+// configured default" (0). A present-but-non-numeric value is a 400, not a
+// silent fallback — the caller asked for something specific and got it wrong.
+func parseLimit(r *http.Request) (int, error) {
+	raw := r.URL.Query().Get("limit")
+	if raw == "" {
+		return 0, nil
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, errors.New("limit must be an integer")
+	}
+	return limit, nil
 }
 
 func respond(w http.ResponseWriter, logger *logging.TLogger, status int, body any) {

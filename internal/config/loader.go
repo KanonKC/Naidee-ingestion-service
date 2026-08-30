@@ -12,8 +12,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// maxBatchRequests is the Message Batches API limit on requests per batch.
-const maxBatchRequests = 100_000
+// MaxBatchRequests is the Message Batches API limit on requests per batch.
+const MaxBatchRequests = 100_000
 
 // Load reads configuration from the environment (and a .env file when present)
 // and validates it. Every caller is expected to fail fast on a non-nil error —
@@ -133,8 +133,8 @@ func (c *Configurations) validate() error {
 	}
 	// The Batch API caps a batch at 100,000 requests. Refuse a limit that would
 	// build a batch the API is guaranteed to reject.
-	if c.LLM.PostLimit > maxBatchRequests {
-		problems = append(problems, fmt.Sprintf("LLM_POST_LIMIT must be <= %d (Batch API cap)", maxBatchRequests))
+	if c.LLM.PostLimit > MaxBatchRequests {
+		problems = append(problems, fmt.Sprintf("LLM_POST_LIMIT must be <= %d (Batch API cap)", MaxBatchRequests))
 	}
 	if c.LLM.PollInterval < time.Second {
 		problems = append(problems, "BATCH_POLL_INTERVAL must be >= 1s")

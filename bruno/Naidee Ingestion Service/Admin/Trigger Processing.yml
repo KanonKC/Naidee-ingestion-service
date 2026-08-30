@@ -1,0 +1,38 @@
+info:
+  name: Trigger Processing
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: http://localhost:8082/api/v1/admin/processing/trigger
+  headers:
+    - name: x-api-key
+      value: "{{Admin_Api_Key}}"
+  params:
+    # Caps how many pending posts this one run submits, overriding
+    # LLM_POST_LIMIT for just this run. Disabled by default — enable it to
+    # test a small run without waiting on the full backlog.
+    - name: limit
+      value: "100"
+      type: query
+      enabled: false
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // 202 and 409 both carry a run_id — the new run, or the one already in
+        // the way. Either is what you want to poll next, so capture both.
+        const data = res.getBody();
+
+        if (data && data.run_id) {
+          bru.setEnvVar("Run_Id", String(data.run_id));
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
