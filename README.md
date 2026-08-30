@@ -328,7 +328,7 @@ curl -X POST http://127.0.0.1:8083/admin/runs -H "x-api-key: $ADMIN_API_KEY"
 
 ### Bruno collection
 
-`bruno/Naidee Processing Service` covers the whole surface. Open it, pick the **Local** environment, and set `Admin_Api_Key` to the same value as the service's `ADMIN_API_KEY` — it is the only thing you have to fill in.
+Lives in the `Admin` folder of `bruno/Naidee Ingestion Service` — one collection for both binaries, since they're one repo. Open it, pick the **Local** environment, and set `Admin_Api_Key` (shared with cmd/ingestion's own admin requests) — it is the only thing you have to fill in.
 
 | Folder | Request | What it is for |
 |---|---|---|
@@ -336,11 +336,11 @@ curl -X POST http://127.0.0.1:8083/admin/runs -H "x-api-key: $ADMIN_API_KEY"
 | Admin | Get Run | polls the run Trigger Run just captured |
 | Admin | Trigger Run - Missing Key | sends no key — a `401` here is the pass |
 | Admin | Get Run - Not Found | asks for a run that does not exist — expects `404` |
-| System | Healthz | database reachability |
+| Admin | Healthz | database reachability, for cmd/processing's port |
 
 Trigger Run writes `run_id` into `Run_Id` after every response, so **Trigger Run → Get Run** works back to back with nothing to copy by hand. It captures the id from a `409` too, which is the case you most want to look at: that response names the run already in the way.
 
-`Base_URL` defaults to `http://127.0.0.1:8083`, matching the service's default bind address.
+Requests point at `http://localhost:8083`, matching cmd/processing's default port — hardcoded per-request rather than a `Base_URL` variable, matching this collection's existing convention (see `Ingest Instagram`).
 
 ## Error handling
 

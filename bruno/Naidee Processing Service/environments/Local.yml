@@ -1,8 +1,0 @@
-name: Local
-variables:
-  - name: Base_URL
-    value: http://127.0.0.1:8083
-  - secret: true
-    name: Admin_Api_Key
-  # Filled in automatically by "Trigger Run" so "Get Run" can follow straight on.
-  - name: Run_Id

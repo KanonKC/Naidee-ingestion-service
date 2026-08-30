@@ -1,11 +1,11 @@
 info:
-  name: Get Run - Not Found
+  name: Get Run
   type: http
-  seq: 4
+  seq: 2
 
 http:
   method: GET
-  url: "{{Base_URL}}/admin/runs/999999"
+  url: http://localhost:8083/admin/runs/{{Run_Id}}
   headers:
     - name: x-api-key
       value: "{{Admin_Api_Key}}"
