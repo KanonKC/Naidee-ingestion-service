@@ -32,12 +32,12 @@ func NewController(baseCtx context.Context, cfg *config.Configurations, processi
 	}
 }
 
-// TriggerRun backs POST /admin/runs — a manual run, for debugging, backfilling,
+// TriggerRun backs POST /api/v1/admin/processing/runs — a manual run, for debugging, backfilling,
 // or demoing without waiting for the next cron tick.
 //
 // It answers immediately and never waits for the batch: a run can take hours,
 // which is far longer than any reasonable request timeout. The caller gets a
-// run id and polls GET /admin/runs/{id}.
+// run id and polls GET /api/v1/admin/processing/runs/{id}.
 func (c *Controller) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	logger := c.logger.SetContext("controller.processing.triggerRun")
 
@@ -68,7 +68,7 @@ func (c *Controller) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	respond(w, logger, http.StatusAccepted, startedResponse{RunID: runID, Status: "started"})
 }
 
-// GetRun backs GET /admin/runs/{id}. It reads processing_runs directly — the
+// GetRun backs GET /api/v1/admin/processing/runs/{id}. It reads processing_runs directly — the
 // caller polls our table, never Anthropic.
 func (c *Controller) GetRun(w http.ResponseWriter, r *http.Request) {
 	logger := c.logger.SetContext("controller.processing.getRun", logging.SetContextOptions{Silent: true})

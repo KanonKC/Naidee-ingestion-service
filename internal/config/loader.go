@@ -15,36 +15,22 @@ import (
 // maxBatchRequests is the Message Batches API limit on requests per batch.
 const maxBatchRequests = 100_000
 
-// LoadIngestion reads and validates the configuration cmd/ingestion needs.
-// Every caller is expected to fail fast on a non-nil error — a
-// half-configured cron job that dies at 3am is worse than one that never boots.
-func LoadIngestion() (*Configurations, error) {
-	cfg, err := load()
+// Load reads configuration from the environment (and a .env file when present)
+// and validates it. Every caller is expected to fail fast on a non-nil error —
+// a half-configured cron job that dies at 3am is worse than one that never boots.
+func Load() (*Configurations, error) {
+	cfg, err := parse()
 	if err != nil {
 		return nil, err
 	}
-	if err := cfg.validateIngestion(); err != nil {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	return cfg, nil
 }
 
-// LoadProcessing reads and validates the configuration cmd/processing needs.
-func LoadProcessing() (*Configurations, error) {
-	cfg, err := load()
-	if err != nil {
-		return nil, err
-	}
-	if err := cfg.validateProcessing(); err != nil {
-		return nil, err
-	}
-	return cfg, nil
-}
-
-// load parses every field from the environment, regardless of which binary is
-// running. Whichever fields the caller's binary does not care about are simply
-// left at whatever the environment (or their fallback) produced, and never read.
-func load() (*Configurations, error) {
+// parse reads every field from the environment.
+func parse() (*Configurations, error) {
 	// Missing .env is fine: in dev/prod the environment is injected by the runtime.
 	_ = godotenv.Load()
 
@@ -52,11 +38,6 @@ func load() (*Configurations, error) {
 		Env:         constants.MakeEnvironment(os.Getenv("ENV")),
 		Port:        envInt("PORT", 8082),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
-		// Shared by both binaries. Defaults to 0.0.0.0 (matches cmd/ingestion's
-		// prior hardcoded behavior). cmd/processing's admin trigger is an
-		// internal tool that should not be public — its own .env sets
-		// HTTP_BIND_ADDRESS=127.0.0.1 explicitly rather than relying on this
-		// default.
 		BindAddress: envString("HTTP_BIND_ADDRESS", "0.0.0.0"),
 
 		Instagram: InstagramConfigurations{
@@ -100,11 +81,13 @@ func load() (*Configurations, error) {
 	return cfg, nil
 }
 
-// validateCommon checks the fields every binary in this module depends on,
-// including ADMIN_API_KEY: both cmd/ingestion and cmd/processing guard their
-// manual trigger with the same x-api-key mechanism.
-func (c *Configurations) validateCommon() []string {
+// validate collects every problem at once so a misconfigured deploy is fixed
+// in one pass instead of one restart per missing variable. This one process
+// does both ingestion and processing, so it needs both sets of variables to
+// boot — there's no "which half is running" split anymore.
+func (c *Configurations) validate() error {
 	var problems []string
+
 	if c.DatabaseURL == "" {
 		problems = append(problems, "DATABASE_URL is required")
 	}
@@ -114,13 +97,6 @@ func (c *Configurations) validateCommon() []string {
 	if c.Admin.APIKey != "" && len(c.Admin.APIKey) < 32 {
 		problems = append(problems, "ADMIN_API_KEY must be at least 32 characters (leave it empty to disable the manual trigger)")
 	}
-	return problems
-}
-
-// validateIngestion collects every problem at once so a misconfigured deploy
-// is fixed in one pass instead of one restart per missing variable.
-func (c *Configurations) validateIngestion() error {
-	problems := c.validateCommon()
 
 	if c.Instagram.AccessToken == "" {
 		problems = append(problems, "IG_ACCESS_TOKEN is required")
@@ -142,12 +118,6 @@ func (c *Configurations) validateIngestion() error {
 	if c.IngestionCron.WorkerConcurrency < 1 {
 		problems = append(problems, "WORKER_CONCURRENCY must be >= 1")
 	}
-
-	return problemsToError(problems)
-}
-
-func (c *Configurations) validateProcessing() error {
-	problems := c.validateCommon()
 
 	if c.LLM.APIKey == "" {
 		problems = append(problems, "ANTHROPIC_API_KEY is required")

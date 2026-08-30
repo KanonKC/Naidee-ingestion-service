@@ -94,7 +94,7 @@ func (s *Service) Run(ctx context.Context) (*RunSummary, error) {
 //
 // The manual trigger endpoint uses this: a run can take hours, which is far
 // longer than a request should be held open, so the caller gets a run id and
-// polls GET /admin/runs/{id} for the outcome.
+// polls GET /api/v1/admin/processing/runs/{id} for the outcome.
 //
 // ctx must outlive the request — pass the application context, not
 // r.Context(), or the run is cancelled the moment the response is written.
@@ -131,7 +131,7 @@ func (s *Service) TriggerAsync(ctx context.Context) (runID int64, started bool, 
 	return runID, true, nil
 }
 
-// GetRun serves GET /admin/runs/{id} straight from processing_runs. Everything
+// GetRun serves GET /api/v1/admin/processing/runs/{id} straight from processing_runs. Everything
 // the caller wants to know is already written there by the normal flow, so
 // there is no reason to ask Anthropic anything.
 func (s *Service) GetRun(ctx context.Context, id int64) (*processingrun.ProcessingRun, error) {

@@ -22,7 +22,7 @@ import (
 func main() {
 	// Config is validated before anything else so a missing variable is a boot
 	// failure with a readable message, not a mystery at the first cron tick.
-	cfg, err := config.LoadIngestion()
+	cfg, err := config.Load()
 	if err != nil {
 		// The logger is not configured yet, so this one goes straight to stderr.
 		os.Stderr.WriteString("ingestion-service failed to start: " + err.Error() + "\n")
@@ -30,7 +30,7 @@ func main() {
 	}
 
 	libs.InitLogger(cfg.Env)
-	logger := logging.New(logging.LayerOther).SetContext("ingestion.bootstrap")
+	logger := logging.New(logging.LayerOther).SetContext("service.bootstrap")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -56,15 +56,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := app.Cron.Run(ctx); err != nil {
-		logger.Error(logging.Meta{Message: "Failed to start the scheduler", Error: err})
+	if err := app.IngestionCron.Run(ctx); err != nil {
+		logger.Error(logging.Meta{Message: "Failed to start the ingestion scheduler", Error: err})
+		os.Exit(1)
+	}
+	if err := app.ProcessingCron.Run(ctx); err != nil {
+		logger.Error(logging.Meta{Message: "Failed to start the processing scheduler", Error: err})
 		os.Exit(1)
 	}
 
 	go func() {
-		logger.Info(logging.Meta{Message: "Health server listening", Data: map[string]any{"addr": app.Server.Addr}})
+		logger.Info(logging.Meta{Message: "HTTP server listening", Data: map[string]any{"addr": app.Server.Addr}})
 		if err := app.Server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error(logging.Meta{Message: "Health server stopped unexpectedly", Error: err})
+			logger.Error(logging.Meta{Message: "HTTP server stopped unexpectedly", Error: err})
 			stop()
 		}
 	}()
@@ -75,12 +79,14 @@ func main() {
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancelShutdown()
 
-	app.Cron.Stop(shutdownCtx)
+	app.IngestionCron.Stop(shutdownCtx)
+	app.ProcessingCron.Stop(shutdownCtx)
 	// A manually triggered run is not owned by the cron scheduler, so wait for
-	// it separately — otherwise its ingestion_runs row stays stuck on `running`.
+	// each separately — otherwise its run row stays stuck on `running`/`polling`.
 	app.IngestionService.WaitIdle(shutdownCtx)
+	app.ProcessingService.WaitIdle(shutdownCtx)
 	if err := app.Server.Shutdown(shutdownCtx); err != nil {
-		logger.Error(logging.Meta{Message: "Health server shutdown failed", Error: err})
+		logger.Error(logging.Meta{Message: "HTTP server shutdown failed", Error: err})
 	}
 
 	logger.Info(logging.Meta{Message: "Shutdown complete"})

@@ -1,6 +1,6 @@
 package processing
 
-// startedResponse is the 202 body of POST /admin/runs.
+// startedResponse is the 202 body of POST /api/v1/admin/processing/runs.
 type startedResponse struct {
 	RunID  int64  `json:"run_id"`
 	Status string `json:"status"`

@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: http://localhost:8083/admin/runs/{{Run_Id}}
+  url: http://localhost:8082/api/v1/admin/processing/runs/{{Run_Id}}
   headers:
     - name: x-api-key
       value: "{{Admin_Api_Key}}"

@@ -36,7 +36,7 @@ func NewController(baseCtx context.Context, cfg *config.Configurations, ingestio
 	}
 }
 
-// Trigger backs POST /api/v1/admin/ingest/instagram — a manual run, for when
+// Trigger backs POST /api/v1/admin/ingestion/trigger — a manual run, for when
 // waiting up to six hours for the next cron tick is not an option.
 //
 // It acknowledges and runs in the background by default. Pass ?wait=true to

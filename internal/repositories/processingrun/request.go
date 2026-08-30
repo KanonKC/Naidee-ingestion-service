@@ -13,7 +13,7 @@ type FinishProcessingRun struct {
 	Error          *string
 }
 
-// ProcessingRun is a row of processing_runs, as served by GET /admin/runs/{id}.
+// ProcessingRun is a row of processing_runs, as served by GET /api/v1/admin/processing/runs/{id}.
 type ProcessingRun struct {
 	ID             int64      `json:"id"`
 	BatchID        *string    `json:"batch_id"`

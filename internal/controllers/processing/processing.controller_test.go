@@ -40,7 +40,7 @@ func TestTriggerRunRejectsAMissingToken(t *testing.T) {
 	controller := newTestController(t, nil)
 
 	for _, header := range []string{"", "wrong-token"} {
-		request := httptest.NewRequest(http.MethodPost, "/admin/runs", nil)
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/processing/runs", nil)
 		if header != "" {
 			request.Header.Set("x-api-key", header)
 		}
@@ -58,7 +58,7 @@ func TestTriggerRunAcceptsAndReturnsARunID(t *testing.T) {
 	controller := newTestController(t, nil)
 
 	recorder := httptest.NewRecorder()
-	controller.TriggerRun(recorder, authorizedRequest(http.MethodPost, "/admin/runs"))
+	controller.TriggerRun(recorder, authorizedRequest(http.MethodPost, "/api/v1/admin/processing/runs"))
 
 	if recorder.Code != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d (%s)", recorder.Code, recorder.Body)
@@ -79,7 +79,7 @@ func TestTriggerRunConflictsWithARunInProgress(t *testing.T) {
 	controller := newTestController(t, batch)
 
 	first := httptest.NewRecorder()
-	controller.TriggerRun(first, authorizedRequest(http.MethodPost, "/admin/runs"))
+	controller.TriggerRun(first, authorizedRequest(http.MethodPost, "/api/v1/admin/processing/runs"))
 	if first.Code != http.StatusAccepted {
 		t.Fatalf("expected the first trigger to be accepted, got %d", first.Code)
 	}
@@ -91,7 +91,7 @@ func TestTriggerRunConflictsWithARunInProgress(t *testing.T) {
 	waitFor(t, func() bool { return batch.submitted() })
 
 	second := httptest.NewRecorder()
-	controller.TriggerRun(second, authorizedRequest(http.MethodPost, "/admin/runs"))
+	controller.TriggerRun(second, authorizedRequest(http.MethodPost, "/api/v1/admin/processing/runs"))
 
 	if second.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d (%s)", second.Code, second.Body)
@@ -112,13 +112,13 @@ func TestTriggerRunConflictsWithARunInProgress(t *testing.T) {
 	controller.processingService.WaitIdle(waitCtx)
 }
 
-// GET /admin/runs/{id} must answer straight from processing_runs, so the same
+// GET /api/v1/admin/processing/runs/{id} must answer straight from processing_runs, so the same
 // run id handed out by the trigger is immediately pollable.
 func TestGetRunReturnsTheStoredRow(t *testing.T) {
 	controller := newTestController(t, nil)
 
 	triggered := httptest.NewRecorder()
-	controller.TriggerRun(triggered, authorizedRequest(http.MethodPost, "/admin/runs"))
+	controller.TriggerRun(triggered, authorizedRequest(http.MethodPost, "/api/v1/admin/processing/runs"))
 
 	var started startedResponse
 	decodeBody(t, triggered, &started)
@@ -130,10 +130,10 @@ func TestGetRunReturnsTheStoredRow(t *testing.T) {
 	// The route is registered with a {id} wildcard, so drive it through a mux
 	// rather than setting PathValue by hand — that is what production does.
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /admin/runs/{id}", controller.GetRun)
+	mux.HandleFunc("GET /api/v1/admin/processing/runs/{id}", controller.GetRun)
 
 	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, authorizedRequest(http.MethodGet, "/admin/runs/1"))
+	mux.ServeHTTP(recorder, authorizedRequest(http.MethodGet, "/api/v1/admin/processing/runs/1"))
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (%s)", recorder.Code, recorder.Body)
@@ -153,10 +153,10 @@ func TestGetRunReportsAMissingRun(t *testing.T) {
 	controller := newTestController(t, nil)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /admin/runs/{id}", controller.GetRun)
+	mux.HandleFunc("GET /api/v1/admin/processing/runs/{id}", controller.GetRun)
 
 	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, authorizedRequest(http.MethodGet, "/admin/runs/999"))
+	mux.ServeHTTP(recorder, authorizedRequest(http.MethodGet, "/api/v1/admin/processing/runs/999"))
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", recorder.Code)
@@ -167,10 +167,10 @@ func TestGetRunRejectsANonNumericID(t *testing.T) {
 	controller := newTestController(t, nil)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /admin/runs/{id}", controller.GetRun)
+	mux.HandleFunc("GET /api/v1/admin/processing/runs/{id}", controller.GetRun)
 
 	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, authorizedRequest(http.MethodGet, "/admin/runs/latest"))
+	mux.ServeHTTP(recorder, authorizedRequest(http.MethodGet, "/api/v1/admin/processing/runs/latest"))
 
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", recorder.Code)

@@ -5,7 +5,7 @@ info:
 
 http:
   method: POST
-  url: http://localhost:8083/admin/runs
+  url: http://localhost:8082/api/v1/admin/processing/runs
   headers:
     # Deliberately empty. The admin routes must refuse an unauthenticated
     # caller, and this is how you check that they still do — a 401 here is the

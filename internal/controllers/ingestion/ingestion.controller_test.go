@@ -102,7 +102,7 @@ func newController(t *testing.T, ig instagram.Client) *Controller {
 }
 
 func triggerRequest(apiKey, query string) *http.Request {
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/ingest/instagram"+query, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/ingestion/trigger"+query, nil)
 	if apiKey != "" {
 		req.Header.Set("x-api-key", apiKey)
 	}

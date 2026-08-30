@@ -19,13 +19,13 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 }
 
 // Upsert writes one post idempotently and reports whether the row was newly
-// inserted. Called by cmd/ingestion.
+// inserted.
 //
 // Captions, media urls and the raw payload are refreshed on every run because
 // people edit captions after posting — fixing an event date, adding a signup
 // link. Keeping the first version would leave stale data behind.
 //
-// When the caption actually changed, processed_at is cleared so cmd/processing
+// When the caption actually changed, processed_at is cleared so processing
 // reprocesses the post on its next run and updates the existing events row. The
 // comparison is on caption_hash rather than the caption itself, and it must be
 // a real change: an unchanged caption re-seen on every six-hourly run would
@@ -79,7 +79,7 @@ func (r *Repository) Upsert(ctx context.Context, request UpsertIgRawPost) (bool,
 }
 
 // ListUnprocessed returns posts waiting for extraction, oldest first. Called by
-// cmd/processing.
+// processing.
 //
 // Posts with no caption are skipped rather than sent: there is nothing for the
 // model to read, so a request would burn tokens to be told is_event=false.
@@ -122,7 +122,7 @@ func (r *Repository) ListUnprocessed(ctx context.Context, limit int) ([]Unproces
 
 // MarkProcessed stamps processed_at so the next run skips this post. It is only
 // ever called after the event row has landed — a post marked processed whose
-// event was never written would be silently lost. Called by cmd/processing.
+// event was never written would be silently lost.
 func (r *Repository) MarkProcessed(ctx context.Context, id int64) error {
 	logger := r.logger.SetContext("repository.igRawPost.markProcessed", logging.SetContextOptions{Silent: true})
 

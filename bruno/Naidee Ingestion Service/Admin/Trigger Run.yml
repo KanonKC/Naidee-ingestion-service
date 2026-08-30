@@ -5,7 +5,7 @@ info:
 
 http:
   method: POST
-  url: http://localhost:8083/admin/runs
+  url: http://localhost:8082/api/v1/admin/processing/runs
   headers:
     - name: x-api-key
       value: "{{Admin_Api_Key}}"

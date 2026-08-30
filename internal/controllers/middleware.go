@@ -14,10 +14,8 @@ var middlewareLogger = logging.New(logging.LayerMiddleware)
 
 // AuthenticateAdmin checks the admin API key, mirroring authenticateAdmin in
 // blaze-backend. The comparison is constant time so the key cannot be
-// recovered by timing the response. Shared by cmd/ingestion and
-// cmd/processing — each reads cfg.Admin.APIKey from its own environment, so
-// the two binaries authenticate against independent secrets even though the
-// mechanism (header name, config field) is the same.
+// recovered by timing the response. Shared by every admin route — ingestion's
+// and processing's alike.
 //
 // An unset key never authenticates, so a service booted without ADMIN_API_KEY
 // cannot be triggered even if the route were somehow reachable.

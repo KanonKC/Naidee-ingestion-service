@@ -6,11 +6,8 @@ import (
 	"event/ingestion-service/internal/constants"
 )
 
-// Configurations is the typed shape of every setting either binary in this
-// module reads from the environment. cmd/ingestion and cmd/processing each
-// load their own environment (own .env, own container), so only the fields
-// relevant to whichever binary is running end up populated — the other
-// binary's fields are simply left at their zero value and never read.
+// Configurations is the typed shape of every setting this service reads from
+// the environment. It mirrors the Configurations interface in blaze-backend.
 type Configurations struct {
 	Env         constants.Environment
 	Port        int
@@ -64,16 +61,18 @@ type GeocodeConfigurations struct {
 	MinInterval time.Duration
 }
 
-// IngestionCronConfigurations drives cmd/ingestion's schedule (IG_* env vars
-// unprefixed, since it was the first cron job this module had).
+// IngestionCronConfigurations drives the ingestion job's schedule — pulling
+// posts from Instagram. Unprefixed env vars, since it was this module's first
+// cron job.
 type IngestionCronConfigurations struct {
 	Schedule          string
 	WorkerConcurrency int
 	RunOnStartup      bool
 }
 
-// ProcessingCronConfigurations drives cmd/processing's schedule. Its env vars
-// are PROCESSING_-prefixed so they don't collide with IngestionCron's.
+// ProcessingCronConfigurations drives the processing job's schedule —
+// extracting events from raw posts. A separate, faster-ticking schedule from
+// IngestionCron's, so its env vars are PROCESSING_-prefixed to avoid colliding.
 type ProcessingCronConfigurations struct {
 	Schedule     string
 	RunOnStartup bool
@@ -85,12 +84,9 @@ type AlertConfigurations struct {
 }
 
 type AdminConfigurations struct {
-	// APIKey guards both binaries' manual trigger, checked via the same
-	// x-api-key header and AuthenticateAdmin middleware. cmd/ingestion and
-	// cmd/processing each read ADMIN_API_KEY from their own environment, so in
-	// practice they authenticate against independent secret values even though
-	// the field and mechanism are shared. When empty, that binary's admin
-	// route(s) are not registered at all — an unauthenticated trigger is worse
-	// than no trigger.
+	// APIKey guards every admin route (ingestion's and processing's alike),
+	// checked via the same x-api-key header and AuthenticateAdmin middleware.
+	// When empty, none of the admin routes are registered at all — an
+	// unauthenticated trigger is worse than no trigger.
 	APIKey string
 }

@@ -13,7 +13,7 @@ import (
 	robfigcron "github.com/robfig/cron/v3"
 )
 
-// IngestionCron owns cmd/ingestion's schedule. It mirrors the TbCron class in blaze-backend.
+// IngestionCron owns the ingestion job's schedule. It mirrors the TbCron class in blaze-backend.
 type IngestionCron struct {
 	cfg              *config.Configurations
 	ingestionService *ingestion.Service
@@ -79,7 +79,7 @@ func (t *IngestionCron) Stop(ctx context.Context) {
 	}
 }
 
-// ProcessingCron owns cmd/processing's schedule. It mirrors the TbCron class in blaze-backend.
+// ProcessingCron owns the processing job's schedule. It mirrors the TbCron class in blaze-backend.
 type ProcessingCron struct {
 	cfg               *config.Configurations
 	processingService *processing.Service

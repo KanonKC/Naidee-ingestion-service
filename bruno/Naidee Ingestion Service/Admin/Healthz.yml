@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: http://localhost:8083/healthz
+  url: http://localhost:8082/healthz
   auth: inherit
 
 settings:

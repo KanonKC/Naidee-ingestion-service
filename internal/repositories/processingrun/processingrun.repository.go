@@ -86,7 +86,7 @@ func (r *Repository) Finish(ctx context.Context, request FinishProcessingRun) er
 }
 
 // Get returns one run, or nil when it does not exist. This is what backs
-// GET /admin/runs/{id}: the caller polls our table, never Anthropic directly.
+// GET /api/v1/admin/processing/runs/{id}: the caller polls our table, never Anthropic directly.
 func (r *Repository) Get(ctx context.Context, id int64) (*ProcessingRun, error) {
 	logger := r.logger.SetContext("repository.processingRun.get", logging.SetContextOptions{Silent: true})
 

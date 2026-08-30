@@ -1,104 +1,125 @@
 # Ingestion Service
 
-A Go cron job that pulls posts from whitelisted Instagram Business/Creator accounts through the Business Discovery API and lands them in Postgres as raw data.
+One Go service, one process, one container. It pulls posts from whitelisted Instagram Business/Creator accounts, and turns the raw posts it collects into structured event data — ingest and process are two jobs inside the same service, not two separate services. Neither is more important than the other; think of them as two widgets living in the same app, the way TRAILBLAZER-backend groups unrelated features under one roof.
 
-**Write-side only.** There is no public HTTP API. The two endpoints it does expose are `/healthz` for container health checks and an admin-only manual ingest trigger.
+**Write-side only.** There is no public read API. It exposes `/healthz` for container health checks and three admin-only routes for manually triggering or inspecting a run.
 
 ## Responsibility
+
+**Ingestion** — capturing raw data before anything is interpreted:
 
 1. Read the IG account whitelist from `ig_sources`
 2. Call Business Discovery once per account
 3. Upsert the results into `ig_raw_posts`, idempotently
 4. Record the outcome in `ingestion_runs`
 
-Raw data is captured in full before anything is interpreted. Deciding which post is an event, parsing Thai captions, geocoding — all of that happens in a later phase, reading from `ig_raw_posts` without re-hitting the API.
+**Processing** — turning raw posts into ready-to-use records:
+
+1. Find `ig_raw_posts` where `processed_at IS NULL`
+2. Submit them as one Claude batch (1 post = 1 request) to classify and extract
+3. Resolve the extracted venue, geocoding it the first time it is seen
+4. Upsert `events`, `venues`
+5. Stamp `ig_raw_posts.processed_at`
+6. Record the outcome in `processing_runs`
+
+**Processing does not know Instagram exists.** Its entire view of the world is "there are rows in `ig_raw_posts` with `processed_at IS NULL`". If a future Eventpop or Zipevent ingester lands rows in the same shape, processing picks them up with no code change at all — that's why the two stay decoupled through the `ig_raw_posts` table even while living in the same process.
 
 ## Schema ownership
 
-This service **does not migrate the database**. The three tables it uses are owned by [Core-Service](../Core-Service), which runs the Prisma migrations. Start Core-Service's `prisma migrate deploy` before booting this service.
+This service **does not migrate the database**. Every table it touches is owned by [Core-Service](../Core-Service), which runs the Prisma migrations. Start Core-Service's `prisma migrate deploy` before booting this service.
 
 The database user configured here needs write access only — no DDL rights.
 
 ## Layout
 
-This repo builds **two binaries** — `cmd/ingestion` and `cmd/processing` (see [Processing](#processing) below) — from one Go module. They share `internal/` as one tree: infrastructure-y concerns (`config`, `cron`, `errors`, `libs`, `logging`, `controllers/middleware.go`, `controllers/system`, `services/system`) are single files/packages used by both binaries; domain-specific concerns sit as sibling subpackages named for the domain they belong to (`controllers/ingestion` next to `controllers/processing`, `services/ingestion` next to `services/processing`, and so on) — never nested under a wrapping `ingestion/` or `processing/` directory.
-
-The layering mirrors `blaze-backend`: **Controller → Service → Repository**, with providers for external APIs and manual dependency wiring in one readable file.
+One binary, `cmd/ingestion-service`. The layering mirrors `blaze-backend`: **Controller → Service → Repository**, with providers for external APIs and manual dependency wiring in one readable file. Concerns that are genuinely shared (config, cron scheduler, admin auth, health check, logging, errors) are single files/packages; concerns specific to one job sit as sibling subpackages named for it (`controllers/ingestion` next to `controllers/processing`, `services/ingestion` next to `services/processing`, and so on) — never nested under a wrapping `ingestion/` or `processing/` directory.
 
 ```
-cmd/ingestion/main.go                  entrypoint: config, db, startup checks, signals
-cmd/processing/main.go                 entrypoint for the processing binary (see Processing below)
-internal/config/                       ONE Configurations struct + loader covering both binaries;
-                                        LoadIngestion()/LoadProcessing() validate only their own fields
+cmd/ingestion-service/main.go          entrypoint: config, db, startup checks, both cron schedulers, one server, signals
+internal/config/                       ONE Configurations struct + ONE Load()/validate() — everything required to boot
 internal/constants/                    Environment enum
 internal/logging/logger.go             TLogger (slog) with Layer enum and run_id support
 internal/errors/errors.go              TError hierarchy
 internal/libs/                         singletons: postgres pool, slog handler
 internal/providers/instagram/          Business Discovery client + error classification
 internal/providers/googlechat/         fatal-error alerting webhook
-internal/providers/claude/             processing's Message Batches client, prompt, response decoding
-internal/providers/geocode/            processing's Nominatim client
+internal/providers/claude/             Message Batches client, prompt, response decoding
+internal/providers/geocode/            Nominatim client with the mandatory rate limit
 internal/repositories/igsource/        ig_sources queries
 internal/repositories/igrawpost/       ig_raw_posts — Upsert (ingestion) + ListUnprocessed/MarkProcessed (processing), same table
 internal/repositories/ingestionrun/    ingestion_runs audit log
-internal/repositories/event/           processing's events upsert
-internal/repositories/venue/           processing's venues lookup and insert
+internal/repositories/event/           events upsert
+internal/repositories/venue/           venues lookup and insert
 internal/repositories/processingrun/   processing_runs audit log
 internal/services/ingestion/           the ingestion orchestrator: worker pool, retries, counters
 internal/services/processing/          the processing orchestrator: batch, poll, apply, venues
-internal/services/system/              health check, shared by both binaries
-internal/controllers/middleware.go     AuthenticateAdmin — shared x-api-key check for both binaries
-internal/controllers/system/           GET /healthz, shared by both binaries
-internal/controllers/ingestion/        POST /api/v1/admin/ingest/instagram
-internal/controllers/processing/       POST /admin/runs, GET /admin/runs/{id}
-internal/cron/cron.go                  IngestionCron + ProcessingCron schedulers (Asia/Bangkok)
-internal/routes/routes.go              Build() (ingestion) + BuildProcessing() — dependency wiring, mirrors routes.ts
+internal/services/system/              health check
+internal/controllers/middleware.go     AuthenticateAdmin — one x-api-key check for every admin route
+internal/controllers/system/           GET /healthz
+internal/controllers/ingestion/        POST /api/v1/admin/ingestion/trigger
+internal/controllers/processing/       POST /api/v1/admin/processing/runs, GET /api/v1/admin/processing/runs/{id}
+internal/cron/cron.go                  IngestionCron + ProcessingCron — two independent schedules, one process (Asia/Bangkok)
+internal/routes/routes.go              Build() — dependency wiring for the whole service, mirrors routes.ts
 ```
 
 ### Where this differs from the spec's suggested layout
 
 The spec sketched `internal/instagram/`, `internal/store/`, `internal/ingest/`. Those became `internal/providers/instagram/`, `internal/repositories/*/`, and `internal/services/ingestion/` so the naming matches `blaze-backend`. The components and their responsibilities are unchanged.
 
-Two other deliberate deviations from the spec, both noted where they occur in the code:
+Other deliberate deviations from the spec, each noted where it occurs in the code:
 
 - **`migrations/` is gone.** Schema ownership moved to Core-Service.
 - **The access token travels in an `Authorization: Bearer` header**, not the `access_token` query parameter the spec shows. The Graph API accepts both; the header keeps the token out of access logs and proxy caches.
 
 ## Configuration
 
-Everything comes from the environment and is validated at startup — a missing variable is a boot failure with a readable message, never a silent 3am cron failure. See [.env.example](.env.example).
+Everything comes from one environment and is validated at startup — a missing variable is a boot failure with a readable message, never a silent 3am cron failure. See [.env.example](.env.example).
 
 | Env | Example | Notes |
 |---|---|---|
 | `DATABASE_URL` | `postgres://...` | write-capable user |
+| `PORT` | `8082` | the one HTTP server |
+| `HTTP_BIND_ADDRESS` | `0.0.0.0` | listen address |
+| `ENV` | `local` | `local` logs as text, `dev`/`prod` as JSON |
 | `IG_ACCESS_TOKEN` | `EAAG...` | long-lived token (60 days) |
 | `IG_USER_ID` | `1784...` | our own IG Business account |
 | `IG_API_VERSION` | `v25.0` | pinned, never the default |
 | `IG_MEDIA_LIMIT` | `25` | recent posts per account |
-| `CRON_SCHEDULE` | `0 */6 * * *` | every 6 hours |
+| `CRON_SCHEDULE` | `0 */6 * * *` | ingestion cron, every 6 hours |
 | `WORKER_CONCURRENCY` | `3` | sources fetched in parallel |
-| `RUN_ON_STARTUP` | `false` | for dev / manual triggering |
+| `RUN_ON_STARTUP` | `false` | trigger ingestion immediately on boot |
 | `GOOGLE_CHAT_WEBHOOK_URL` | | optional; empty disables alerting |
-| `ADMIN_API_KEY` | | optional; empty disables the manual trigger. Min 32 chars |
-| `PORT` | `8082` | health endpoint |
-| `ENV` | `local` | `local` logs as text, `dev`/`prod` as JSON |
+| `ANTHROPIC_API_KEY` | `sk-ant-...` | Claude Message Batches API |
+| `LLM_MODEL` | `claude-haiku-4-5` | |
+| `LLM_MAX_TOKENS` | `500` | caps each extraction |
+| `LLM_POST_LIMIT` | `5000` | posts submitted per processing run |
+| `BATCH_POLL_INTERVAL` | `30s` | |
+| `BATCH_POLL_TIMEOUT` | `2h` | |
+| `GEOCODE_BASE_URL` | `https://nominatim.openstreetmap.org` | |
+| `GEOCODE_USER_AGENT` | | required; Nominatim blocks unidentified clients |
+| `GEOCODE_MIN_INTERVAL` | `1s` | |
+| `PROCESSING_CRON_SCHEDULE` | `*/30 * * * *` | processing cron, every 30 minutes — independent of `CRON_SCHEDULE` |
+| `PROCESSING_RUN_ON_STARTUP` | `false` | trigger processing immediately on boot |
+| `ADMIN_API_KEY` | | optional; empty disables all three admin routes. Min 32 chars |
 
 ## HTTP endpoints
+
+All under one server, one port, one API key.
 
 ### `GET /healthz`
 
 200 when the database is reachable, 503 otherwise. For container health checks only.
 
-### `POST /api/v1/admin/ingest/instagram`
+### `POST /api/v1/admin/ingestion/trigger`
 
 Runs an ingestion pass on demand, for when waiting up to six hours for the next cron tick is not an option.
 
-Guarded by the `x-api-key` header, compared against `ADMIN_API_KEY` in constant time — the same pattern `blaze-backend` uses for its admin routes. **If `ADMIN_API_KEY` is unset the route is not registered at all**, and a warning says so at startup. Registering a mutating endpoint without authentication would be worse than not having it.
+Guarded by the `x-api-key` header, compared against `ADMIN_API_KEY` in constant time — the same pattern `blaze-backend` uses for its admin routes, and the same key that guards the processing routes below. **If `ADMIN_API_KEY` is unset none of the admin routes are registered at all**, and a warning says so at startup.
 
 Asynchronous by default: an ingestion pass takes far longer than a request should, so the trigger acknowledges and runs in the background.
 
 ```bash
-curl -X POST http://localhost:8082/api/v1/admin/ingest/instagram -H "x-api-key: $ADMIN_API_KEY"
+curl -X POST http://localhost:8082/api/v1/admin/ingestion/trigger -H "x-api-key: $ADMIN_API_KEY"
 ```
 
 ```json
@@ -108,7 +129,7 @@ curl -X POST http://localhost:8082/api/v1/admin/ingest/instagram -H "x-api-key: 
 Add `?wait=true` to block until the run finishes and get the counters back. This is what makes the idempotency check easy to verify — run it twice, and `posts_new` must be `0` the second time:
 
 ```bash
-curl -X POST "http://localhost:8082/api/v1/admin/ingest/instagram?wait=true" -H "x-api-key: $ADMIN_API_KEY"
+curl -X POST "http://localhost:8082/api/v1/admin/ingestion/trigger?wait=true" -H "x-api-key: $ADMIN_API_KEY"
 ```
 
 ```json
@@ -135,7 +156,29 @@ A finished run whose `status` is `failed` still comes back as `200`: the request
 
 Synchronous runs are capped at 15 minutes. Both modes are cancelled on shutdown, and shutdown waits for an in-flight manual run so its `ingestion_runs` row does not stay stuck on `running`.
 
+### `POST /api/v1/admin/processing/runs`
+
+Starts a processing run on demand. `202` with a `run_id`, or `409` naming the run already in progress — the cron and the trigger go through the same `atomic.Bool` compare-and-swap, so at most one processing run is ever in flight.
+
+```bash
+curl -X POST http://localhost:8082/api/v1/admin/processing/runs -H "x-api-key: $ADMIN_API_KEY"
+```
+
+Never waits for the batch — a run can take hours. Poll the route below for the outcome.
+
+### `GET /api/v1/admin/processing/runs/{id}`
+
+Run status and counters, read straight from `processing_runs`.
+
+```bash
+curl http://localhost:8082/api/v1/admin/processing/runs/42 -H "x-api-key: $ADMIN_API_KEY"
+```
+
+The processing cron fires every thirty minutes; a batch can be polled for up to two hours. Without the compare-and-swap guard above, overlapping ticks would submit the same posts twice — an overlapping cron tick is silently skipped, an overlapping manual trigger gets a `409`. This is an **in-process** guard and protects a single replica; running more than one needs `pg_try_advisory_lock` instead.
+
 ## Error handling
+
+### Ingestion
 
 Failures are classified into three kinds because each one demands a different response:
 
@@ -153,9 +196,20 @@ Unrecognised error codes are treated as **transient**. Retrying and letting `con
 
 A source that fails **5 runs in a row** is auto-deactivated, so a dead account stops burning rate-limit quota. Sources cut short by a fatal abort are explicitly exempt from that counter — otherwise a couple of rate-limited runs would deactivate an entire healthy whitelist.
 
+### Processing
+
+| Situation | What happens |
+|---|---|
+| Batch submit fails (network, auth) | run marked `failed`, no `processed_at` set — the next run retries the whole set |
+| Poll exceeds `BATCH_POLL_TIMEOUT` | run marked `failed`, `batch_id` kept so the batch can be recovered by hand within 29 days |
+| One item comes back as invalid JSON | logged with the raw response, counted in `posts_failed`, post left pending — the rest of the batch is unaffected |
+| A submitted post gets no result line | counted in `posts_failed` and left pending, so it cannot be silently lost |
+| Geocoding finds nothing, or fails | venue created with NULL coordinates; the event lands normally |
+| Venue resolution fails outright | logged; the event row survives and the post still counts as processed |
+
 ## Observability
 
-Every log line inside a run carries `run_id`:
+Every log line inside an ingestion run carries `run_id`:
 
 ```
 INFO  ingestion run started    run_id=42 sources=87
@@ -166,7 +220,7 @@ INFO  ingestion run finished   run_id=42 status=partial ok=85 failed=2 new=31 up
 
 ## Token management
 
-The long-lived token lasts 60 days and can be renewed **before** it expires. Let it lapse and the whole OAuth flow has to be redone.
+The long-lived IG token lasts 60 days and can be renewed **before** it expires. Let it lapse and the whole OAuth flow has to be redone.
 
 Auto-refresh is a later phase. For now:
 
@@ -183,63 +237,11 @@ Business Discovery falls under Platform Rate Limiting (not the tighter Business 
 
 Past roughly 150 sources — or a schedule tighter than 6 hours — switch to a tiered schedule instead: frequent posters every 6 hours, everything else once a day, driven by a new `sync_interval_hours` column on `ig_sources`.
 
-## Development
+## Batches and why processing uses one
 
-```bash
-go build ./...
-go test ./...
-go test -race ./...
-go run ./cmd/ingestion
-```
+The Batch API costs half of what the same requests cost synchronously, and this is a cron job with nobody waiting on the answer — the tradeoff is free. The system prompt is byte-identical across every request in a batch and carries a cache breakpoint, so it is billed once per batch rather than once per post.
 
-Set `RUN_ON_STARTUP=true` to trigger a run immediately instead of waiting for the schedule.
-
----
-
-# Processing
-
-`cmd/processing`, sharing `internal/` with `cmd/ingestion` above (see [Layout](#layout)) — still built and deployed as its own binary/container (`Dockerfile.processing`), with its own `go run ./cmd/processing`.
-
-A Go cron job that reads unprocessed rows from `ig_raw_posts`, puts them through the Claude Message Batches API to classify and extract structured event data, geocodes the venue, and lands the result in `events` and `venues`.
-
-**Write-side only.** There is no public HTTP API. The endpoints it exposes are `/healthz` for container health checks and two admin-only routes for triggering and inspecting a run.
-
-## Responsibility
-
-1. Find `ig_raw_posts` where `processed_at IS NULL`
-2. Submit them as one Claude batch (1 post = 1 request) to classify and extract
-3. Resolve the extracted venue, geocoding it the first time it is seen
-4. Upsert `events`, `venues`
-5. Stamp `ig_raw_posts.processed_at`
-6. Record the outcome in `processing_runs`
-
-**This service does not know Instagram exists.** Its entire view of the world is "there are rows in `ig_raw_posts` with `processed_at IS NULL`". If a future Eventpop or Zipevent ingester lands rows in the same shape, this service picks them up with no code change at all.
-
-## Schema ownership
-
-This service **does not migrate the database**. Every table it touches is owned by [Core-Service](../Core-Service), which runs the Prisma migrations. Run Core-Service's `prisma migrate deploy` before booting this service.
-
-The database user configured here needs write access only — no DDL rights.
-
-## Layout
-
-See the shared [Layout](#layout) section above — `internal/services/processing/`, `internal/controllers/processing/`, `internal/providers/{claude,geocode}/`, and `internal/repositories/{event,venue,processingrun}/` are processing's own packages; `internal/config`, `internal/cron`, `internal/controllers/middleware.go`, `internal/controllers/system/`, `internal/services/system/`, `internal/repositories/igrawpost/`, and `internal/routes/routes.go` are shared with `cmd/ingestion`.
-
-## Getting started
-
-```bash
-cp .env.example .env
-```
-
-Fill in `DATABASE_URL`, `ANTHROPIC_API_KEY`, and a real contact address in `GEOCODE_USER_AGENT`. Then:
-
-```bash
-go run ./cmd/processing
-```
-
-The service validates its whole configuration at boot and refuses to start on a problem, rather than dying at the first cron tick.
-
-## How a run works
+A processing run:
 
 ```
 1. SELECT pending posts (LIMIT LLM_POST_LIMIT)
@@ -255,10 +257,6 @@ Two ordering rules carry most of the correctness:
 
 - **Results are written the moment they are fetched.** Batch results expire after 29 days, and a `batch_id` parked in a table with nobody fetching it is a slow data leak. There is deliberately no "fetch a previous run's results later" path.
 - **`processed_at` is stamped last.** A failure anywhere above it leaves the post pending, so the next run retries it. A post can be processed twice; it can never be silently dropped.
-
-### Costs and why it is a batch
-
-The Batch API costs half of what the same requests cost synchronously, and this is a cron job with nobody waiting on the answer — the tradeoff is free. The system prompt is byte-identical across every request in a batch and carries a cache breakpoint, so it is billed once per batch rather than once per post.
 
 ## Venue matching (and its known limitation)
 
@@ -292,66 +290,40 @@ Note one deliberate deviation from the spec's SQL: the spec keys `auto_published
 
 ## Reprocessing an edited caption
 
-Captions get edited after posting — a corrected date, an added signup link. This repo's ingestion side stores a `caption_hash` alongside each post and clears `processed_at` when it changes, which queues the post for reprocessing here. `UNIQUE (raw_post_id)` on `events` makes that an UPDATE of the existing row rather than a duplicate.
+Captions get edited after posting — a corrected date, an added signup link. Ingestion stores a `caption_hash` alongside each post and clears `processed_at` when it changes, which queues the post for reprocessing. `UNIQUE (raw_post_id)` on `events` makes that an UPDATE of the existing row rather than a duplicate.
 
 Whether an edited caption *should* also reset an admin's approve/reject decision is an open question, deliberately left for a later phase.
 
 **On first deploy:** every existing `ig_raw_posts` row has `caption_hash = NULL`, so the next ingestion run writes a hash and clears `processed_at`. Since nothing has been processed yet in Phase 1, this is a no-op in practice — but it is worth knowing if you deploy this against a database that already has processed rows.
 
-## Overlap protection
+## Bruno collection
 
-The cron fires every thirty minutes; a batch can be polled for up to two hours. Without a guard, four runs would be submitting the same posts at once.
-
-Both the cron and the manual trigger go through the same `atomic.Bool` compare-and-swap, so they are serialised against each other with no second lock to keep in sync. An overlapping cron tick is skipped; an overlapping manual trigger gets a `409` naming the run that is in the way.
-
-This is an **in-process** flag and protects a single replica, which is what this service is designed to be. Running more than one replica needs `pg_try_advisory_lock` instead — the flag cannot see another process.
-
-## Admin API
-
-Not a public API and not for the frontend. It is internal tooling for debugging, backfilling, and demos, authenticated the same way as cmd/ingestion's manual trigger: a shared `x-api-key` header compared in constant time (see [AuthenticateAdmin](#layout)) — there is no user/role system because there is one operator.
-
-Set `ADMIN_API_KEY` (min 32 chars, same env var name as cmd/ingestion's, but this binary reads its own value from its own `.env`) to enable it. Leave it empty and **the routes are not registered at all**; an unauthenticated trigger would be worse than no trigger.
-
-`HTTP_BIND_ADDRESS` is shared with cmd/ingestion and defaults to `0.0.0.0` if unset — cmd/processing's own `.env` (see [.env.example](.env.example)) pins it to `127.0.0.1` explicitly instead, since the admin routes must not be public. If you need it reachable in a container, set `0.0.0.0` and restrict access at the network layer instead — never expose this port publicly by relying on the shared default.
-
-| Route | Purpose |
-|---|---|
-| `POST /admin/runs` | start a run; `202` with a `run_id`, or `409` with the run already in progress |
-| `GET /admin/runs/{id}` | run status and counters, read straight from `processing_runs` |
-| `GET /healthz` | container health check (database reachability) |
-
-`POST /admin/runs` answers immediately and never waits for the batch — a run can take hours. Poll `GET /admin/runs/{id}` for the outcome. No extra rate limiting is needed: concurrent calls all collide on the same guard and get `409`.
-
-```bash
-curl -X POST http://127.0.0.1:8083/admin/runs -H "x-api-key: $ADMIN_API_KEY"
-```
-
-### Bruno collection
-
-Lives in the `Admin` folder of `bruno/Naidee Ingestion Service` — one collection for both binaries, since they're one repo. Open it, pick the **Local** environment, and set `Admin_Api_Key` (shared with cmd/ingestion's own admin requests) — it is the only thing you have to fill in.
+`bruno/Naidee Ingestion Service` covers the whole surface. Open it, pick the **Local** environment, and set `Admin_Api_Key` — it is the only thing you have to fill in.
 
 | Folder | Request | What it is for |
 |---|---|---|
-| Admin | Trigger Run | starts a run; captures `run_id` into the environment |
+| — | Ingest Instagram | triggers an ingestion run |
+| Admin | Trigger Run | starts a processing run; captures `run_id` into the environment |
 | Admin | Get Run | polls the run Trigger Run just captured |
 | Admin | Trigger Run - Missing Key | sends no key — a `401` here is the pass |
 | Admin | Get Run - Not Found | asks for a run that does not exist — expects `404` |
-| Admin | Healthz | database reachability, for cmd/processing's port |
+| Admin | Healthz | database reachability |
 
 Trigger Run writes `run_id` into `Run_Id` after every response, so **Trigger Run → Get Run** works back to back with nothing to copy by hand. It captures the id from a `409` too, which is the case you most want to look at: that response names the run already in the way.
 
-Requests point at `http://localhost:8083`, matching cmd/processing's default port — hardcoded per-request rather than a `Base_URL` variable, matching this collection's existing convention (see `Ingest Instagram`).
+Requests point at `http://localhost:8082`, hardcoded per-request rather than a `Base_URL` variable, matching this collection's existing convention.
 
-## Error handling
+## Development
 
-| Situation | What happens |
-|---|---|
-| Batch submit fails (network, auth) | run marked `failed`, no `processed_at` set — the next run retries the whole set |
-| Poll exceeds `BATCH_POLL_TIMEOUT` | run marked `failed`, `batch_id` kept so the batch can be recovered by hand within 29 days |
-| One item comes back as invalid JSON | logged with the raw response, counted in `posts_failed`, post left pending — the rest of the batch is unaffected |
-| A submitted post gets no result line | counted in `posts_failed` and left pending, so it cannot be silently lost |
-| Geocoding finds nothing, or fails | venue created with NULL coordinates; the event lands normally |
-| Venue resolution fails outright | logged; the event row survives and the post still counts as processed |
+```bash
+cp .env.example .env
+go build ./...
+go test ./...
+go test -race ./...
+go run ./cmd/ingestion-service
+```
+
+The service validates its whole configuration at boot — both the ingestion and processing variables — and refuses to start on a problem, rather than dying at the first cron tick. Set `RUN_ON_STARTUP=true` / `PROCESSING_RUN_ON_STARTUP=true` to trigger a run immediately instead of waiting for its schedule.
 
 ## Testing
 
@@ -359,4 +331,4 @@ Requests point at `http://localhost:8083`, matching cmd/processing's default por
 go test -race ./...
 ```
 
-The orchestrator, the batch-response decoding and the admin routes are all covered without a database or an API key. The batch client is an interface precisely so the tests never spend money.
+The orchestrators, the batch-response decoding, and the admin routes are all covered without a database or an API key. The batch client is an interface precisely so the tests never spend money.

@@ -5,7 +5,7 @@ info:
 
 http:
   method: POST
-  url: http://localhost:8082/api/v1/admin/ingest/instagram?wait=true
+  url: http://localhost:8082/api/v1/admin/ingestion/trigger?wait=true
   headers:
     - name: x-api-key
       value: "{{Admin_Api_Key}} "
