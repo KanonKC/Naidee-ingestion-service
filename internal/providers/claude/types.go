@@ -24,8 +24,11 @@ type ExtractionResult struct {
 	AddressDetail   *string
 	StartDate       *time.Time
 	EndDate         *time.Time
+	StartTimeKnown  bool
+	EndTimeKnown    bool
 	PriceText       *string
-	Category        *string
+	Categories      []string
+	Tags            []string
 	RegistrationURL *string
 	Error           error
 }
@@ -59,7 +62,10 @@ type extractionPayload struct {
 	AddressDetail   *string `json:"address_detail"`
 	StartDate       *string `json:"start_date"`
 	EndDate         *string `json:"end_date"`
-	PriceText       *string `json:"price_text"`
-	Category        *string `json:"category"`
-	RegistrationURL *string `json:"registration_url"`
+	StartTimeKnown  bool    `json:"start_time_known"`
+	EndTimeKnown    bool    `json:"end_time_known"`
+	PriceText       *string  `json:"price_text"`
+	Categories      []string `json:"categories"`
+	Tags            []string `json:"tags"`
+	RegistrationURL *string  `json:"registration_url"`
 }

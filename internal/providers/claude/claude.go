@@ -20,10 +20,13 @@ import (
 // becomes midnight Bangkok rather than midnight UTC (which is the day before).
 var bangkokTZ = time.FixedZone("Asia/Bangkok", 7*60*60)
 
-// dateLayouts are the shapes an "ISO 8601 date" answer actually arrives in.
-// The prompt asks for the first one; the rest are cheap insurance.
-var dateLayouts = []string{
-	"2006-01-02",
+// dateOnlyLayout is the shape used when the post gives no time-of-day.
+const dateOnlyLayout = "2006-01-02"
+
+// dateTimeLayouts are the shapes an "ISO 8601 datetime" answer arrives in when
+// the post does give a time-of-day. The prompt asks for the first one; the
+// rest are cheap insurance.
+var dateTimeLayouts = []string{
 	"2006-01-02T15:04:05",
 	"2006-01-02 15:04:05",
 	time.RFC3339,
@@ -190,20 +193,23 @@ func decodeEntry(rawPostID int64, entry anthropic.MessageBatchIndividualResponse
 		VenueName:       payload.VenueName,
 		AddressDetail:   payload.AddressDetail,
 		PriceText:       payload.PriceText,
-		Category:        payload.Category,
+		Categories:      validateCategories(payload.Categories),
+		Tags:            cleanTags(payload.Tags),
 		RegistrationURL: payload.RegistrationURL,
 	}
 
 	// An unparsable date is not worth failing the whole post over: the title,
 	// venue and price are still useful. Drop the date and downgrade confidence,
 	// which is the same outcome the "never guess a date" prompt rule asks for.
-	if start, ok := parseDate(payload.StartDate); ok {
+	if start, hasTime, ok := parseDate(payload.StartDate); ok {
 		result.StartDate = start
+		result.StartTimeKnown = hasTime && payload.StartTimeKnown
 	} else if payload.StartDate != nil {
 		result.Confidence = ConfidenceLow
 	}
-	if end, ok := parseDate(payload.EndDate); ok {
+	if end, hasTime, ok := parseDate(payload.EndDate); ok {
 		result.EndDate = end
+		result.EndTimeKnown = hasTime && payload.EndTimeKnown
 	}
 
 	return result
@@ -265,21 +271,70 @@ func NormalizeConfidence(raw string) string {
 
 // parseDate resolves a date string in Bangkok time. It reports ok=false for a
 // null, empty or unparsable value — the caller decides what that costs.
-func parseDate(raw *string) (*time.Time, bool) {
+// hasTime reports whether the value actually carried a time-of-day, which is
+// what the *_time_known columns are trusted from rather than the model's own
+// flag: a model can say true and still hand back a bare date.
+func parseDate(raw *string) (parsed *time.Time, hasTime bool, ok bool) {
 	if raw == nil {
-		return nil, false
+		return nil, false, false
 	}
 	value := strings.TrimSpace(*raw)
 	if value == "" || strings.EqualFold(value, "null") {
-		return nil, false
+		return nil, false, false
 	}
 
-	for _, layout := range dateLayouts {
-		if parsed, err := time.ParseInLocation(layout, value, bangkokTZ); err == nil {
-			return &parsed, true
+	for _, layout := range dateTimeLayouts {
+		if t, err := time.ParseInLocation(layout, value, bangkokTZ); err == nil {
+			return &t, true, true
 		}
 	}
-	return nil, false
+	if t, err := time.ParseInLocation(dateOnlyLayout, value, bangkokTZ); err == nil {
+		return &t, false, true
+	}
+	return nil, false, false
+}
+
+// allowedCategories are the only ids the frontend knows how to render. The
+// prompt states this list too, but a prompt is guidance, not a guarantee, so
+// anything else the model returns is dropped here rather than trusted.
+var allowedCategories = map[string]bool{
+	"music":    true,
+	"art":      true,
+	"workshop": true,
+	"market":   true,
+	"film":     true,
+	"talk":     true,
+}
+
+// validateCategories keeps only known ids, trimmed, lowercased and deduped.
+func validateCategories(raw []string) []string {
+	seen := make(map[string]bool, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, c := range raw {
+		id := strings.ToLower(strings.TrimSpace(c))
+		if id == "" || !allowedCategories[id] || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
+}
+
+// cleanTags trims, drops empties and dedupes — no vocabulary restriction,
+// tags are free-form.
+func cleanTags(raw []string) []string {
+	seen := make(map[string]bool, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, t := range raw {
+		tag := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(t), "#"))
+		if tag == "" || seen[tag] {
+			continue
+		}
+		seen[tag] = true
+		out = append(out, tag)
+	}
+	return out
 }
 
 func truncate(value string, limit int) string {

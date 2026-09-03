@@ -9,8 +9,11 @@ type UpsertEvent struct {
 	AddressDetail   *string
 	StartAt         *time.Time
 	EndAt           *time.Time
+	StartTimeKnown  bool
+	EndTimeKnown    bool
 	PriceText       *string
-	Category        *string
+	Categories      []string
+	Tags            []string
 	RegistrationURL *string
 	IsEvent         bool
 	Confidence      string

@@ -38,18 +38,22 @@ func (r *Repository) Upsert(ctx context.Context, request UpsertEvent) error {
 	// event" must not read as "publish it".
 	const query = `
 		INSERT INTO events (
-		    raw_post_id, title, address_detail, start_at, end_at, price_text,
-		    category, registration_url, is_event, confidence, review_status
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-		    CASE WHEN $9 AND $10 = 'high' THEN 'auto_published' ELSE 'pending' END
+		    raw_post_id, title, address_detail, start_at, end_at,
+		    start_time_known, end_time_known, price_text,
+		    categories, tags, registration_url, is_event, confidence, review_status
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+		    CASE WHEN $12 AND $13 = 'high' THEN 'auto_published' ELSE 'pending' END
 		)
 		ON CONFLICT (raw_post_id) DO UPDATE SET
 		    title            = EXCLUDED.title,
 		    address_detail   = EXCLUDED.address_detail,
 		    start_at         = EXCLUDED.start_at,
 		    end_at           = EXCLUDED.end_at,
+		    start_time_known = EXCLUDED.start_time_known,
+		    end_time_known   = EXCLUDED.end_time_known,
 		    price_text       = EXCLUDED.price_text,
-		    category         = EXCLUDED.category,
+		    categories       = EXCLUDED.categories,
+		    tags             = EXCLUDED.tags,
 		    registration_url = EXCLUDED.registration_url,
 		    is_event         = EXCLUDED.is_event,
 		    confidence       = EXCLUDED.confidence,
@@ -61,8 +65,11 @@ func (r *Repository) Upsert(ctx context.Context, request UpsertEvent) error {
 		request.AddressDetail,
 		request.StartAt,
 		request.EndAt,
+		request.StartTimeKnown,
+		request.EndTimeKnown,
 		request.PriceText,
-		request.Category,
+		request.Categories,
+		request.Tags,
 		request.RegistrationURL,
 		request.IsEvent,
 		request.Confidence,
