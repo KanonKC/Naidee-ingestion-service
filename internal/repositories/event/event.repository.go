@@ -38,13 +38,14 @@ func (r *Repository) Upsert(ctx context.Context, request UpsertEvent) error {
 	// event" must not read as "publish it".
 	const query = `
 		INSERT INTO events (
-		    raw_post_id, title, start_at, end_at, price_text,
+		    raw_post_id, title, address_detail, start_at, end_at, price_text,
 		    category, registration_url, is_event, confidence, review_status
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
-		    CASE WHEN $8 AND $9 = 'high' THEN 'auto_published' ELSE 'pending' END
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+		    CASE WHEN $9 AND $10 = 'high' THEN 'auto_published' ELSE 'pending' END
 		)
 		ON CONFLICT (raw_post_id) DO UPDATE SET
 		    title            = EXCLUDED.title,
+		    address_detail   = EXCLUDED.address_detail,
 		    start_at         = EXCLUDED.start_at,
 		    end_at           = EXCLUDED.end_at,
 		    price_text       = EXCLUDED.price_text,
@@ -57,6 +58,7 @@ func (r *Repository) Upsert(ctx context.Context, request UpsertEvent) error {
 	_, err := r.db.Exec(ctx, query,
 		request.RawPostID,
 		request.Title,
+		request.AddressDetail,
 		request.StartAt,
 		request.EndAt,
 		request.PriceText,

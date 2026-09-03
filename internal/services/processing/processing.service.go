@@ -373,6 +373,7 @@ func (s *Service) applyResult(
 	if err := s.eventRepo.Upsert(ctx, event.UpsertEvent{
 		RawPostID:       result.RawPostID,
 		Title:           result.Title,
+		AddressDetail:   result.AddressDetail,
 		StartAt:         result.StartDate,
 		EndAt:           result.EndDate,
 		PriceText:       result.PriceText,

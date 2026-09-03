@@ -188,6 +188,7 @@ func decodeEntry(rawPostID int64, entry anthropic.MessageBatchIndividualResponse
 		Confidence:      NormalizeConfidence(payload.Confidence),
 		Title:           payload.Title,
 		VenueName:       payload.VenueName,
+		AddressDetail:   payload.AddressDetail,
 		PriceText:       payload.PriceText,
 		Category:        payload.Category,
 		RegistrationURL: payload.RegistrationURL,

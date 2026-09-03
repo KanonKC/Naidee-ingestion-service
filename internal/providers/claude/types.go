@@ -21,6 +21,7 @@ type ExtractionResult struct {
 	Confidence      string
 	Title           *string
 	VenueName       *string
+	AddressDetail   *string
 	StartDate       *time.Time
 	EndDate         *time.Time
 	PriceText       *string
@@ -55,6 +56,7 @@ type extractionPayload struct {
 	Confidence      string  `json:"confidence"`
 	Title           *string `json:"title"`
 	VenueName       *string `json:"venue_name"`
+	AddressDetail   *string `json:"address_detail"`
 	StartDate       *string `json:"start_date"`
 	EndDate         *string `json:"end_date"`
 	PriceText       *string `json:"price_text"`

@@ -6,6 +6,7 @@ import "time"
 type UpsertEvent struct {
 	RawPostID       int64
 	Title           *string
+	AddressDetail   *string
 	StartAt         *time.Time
 	EndAt           *time.Time
 	PriceText       *string

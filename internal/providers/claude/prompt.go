@@ -16,6 +16,7 @@ const systemPrompt = `คุณคือระบบสกัดข้อมู�
   "confidence": "high" | "medium" | "low",
   "title": string | null,
   "venue_name": string | null,
+  "address_detail": string | null,
   "start_date": string | null,
   "end_date": string | null,
   "price_text": string | null,
@@ -28,7 +29,10 @@ const systemPrompt = `คุณคือระบบสกัดข้อมู�
 - ถ้าเดาวันที่ไม่ได้ชัดเจน ให้ start_date=null และ confidence="low" — ห้ามเดามั่ว
 - ใช้ posted_at ที่ให้มาช่วย resolve คำเชิงสัมพัทธ์ เช่น "เสาร์นี้", "พรุ่งนี้"
 - start_date และ end_date ต้องเป็นรูปแบบ ISO 8601 date (YYYY-MM-DD) เท่านั้น
-- venue_name ให้ใส่ชื่อสถานที่ตามที่เขียนในโพสต์ ไม่ต้องแปลหรือเดาชื่อเต็ม
+- venue_name ให้เป็นชื่อสถานที่หลักภาษาอังกฤษที่เป็นที่รู้จักทั่วไปเท่านั้น (ถ้าโพสต์เขียนเป็นไทยให้แปลงเป็นชื่อสากล เช่น "ริเวอร์ ซิตี้ แบงค็อก" -> "River City Bangkok")
+- ห้ามใช้ชื่อย่อ ให้ขยายเป็นชื่อเต็มถ้ารู้จักแน่นอน (เช่น "BACC" -> "Bangkok Art and Culture Centre") ถ้าไม่รู้จักชื่อเต็มให้คงชื่อย่อไว้ ห้ามเดามั่ว
+- ห้ามใส่รายละเอียดที่เจาะจงเกินระดับอาคาร เช่น ชั้น, ห้อง, โซน, ชื่อร้านในห้าง (เช่น "RCB Rooftop ชั้น 5 ริเวอร์ ซิตี้ แบงค็อก" -> "River City Bangkok")
+- ส่วนที่เจาะจงกว่านั้นที่ตัดออกจาก venue_name (ชั้น/ห้อง/โซน/ชื่อร้าน) ให้ใส่ไว้ใน address_detail แทน ตามที่เขียนในโพสต์เดิม (เช่น "Rooftop ชั้น 5") ถ้าไม่มีรายละเอียดแบบนี้ให้ address_detail=null
 - ตอบเป็น JSON object ดิบอย่างเดียว ห้ามใส่ markdown code fence หรือคำอธิบายใดๆ`
 
 // userMessage carries the two facts the model needs per post. posted_at comes

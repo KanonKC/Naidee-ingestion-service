@@ -1,0 +1,52 @@
+meta:
+  name: Geocode Venue
+  type: http
+  seq: 1
+
+get:
+  url: "{{geocodeBaseUrl}}/search?q={{rawName}}&format=jsonv2&limit=1&countrycodes=th"
+  body: none
+  auth: none
+
+params:
+  query:
+    - name: q
+      value: "{{rawName}}"
+      enabled: true
+    - name: format
+      value: jsonv2
+      enabled: true
+    - name: limit
+      value: "1"
+      enabled: true
+    - name: countrycodes
+      value: th
+      enabled: true
+
+headers:
+  - name: User-Agent
+    value: "{{geocodeUserAgent}}"
+    enabled: true
+  - name: Accept
+    value: application/json
+    enabled: true
+
+script:
+  post-response: |
+    const place = res.body?.[0];
+    if (place) {
+      bru.setVar("lat", place.lat);
+      bru.setVar("lng", place.lon);
+      console.log(`lat=${place.lat} lng=${place.lon} display_name=${place.display_name}`);
+    } else {
+      console.log("no result for query: " + bru.getVar("rawName"));
+    }
+
+tests: |
+  test("status is 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("response is an array", function () {
+    expect(res.getBody()).to.be.an("array");
+  });
