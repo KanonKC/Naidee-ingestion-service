@@ -370,19 +370,24 @@ func (s *Service) applyResult(
 	result claude.ExtractionResult,
 	counters *runCounters,
 ) error {
-	if err := s.eventRepo.Upsert(ctx, event.UpsertEvent{
-		RawPostID:       result.RawPostID,
-		Title:           result.Title,
-		AddressDetail:   result.AddressDetail,
-		StartAt:         result.StartDate,
-		EndAt:           result.EndDate,
-		PriceText:       result.PriceText,
-		Category:        result.Category,
-		RegistrationURL: result.RegistrationURL,
-		IsEvent:         result.IsEvent,
-		Confidence:      result.Confidence,
-	}); err != nil {
-		return err
+	// A non-event earns no row at all: ig_raw_posts.processed_at (set below) is
+	// what actually stops it being picked up again, so there is nothing worth
+	// keeping in events for it.
+	if result.IsEvent {
+		if err := s.eventRepo.Upsert(ctx, event.UpsertEvent{
+			RawPostID:       result.RawPostID,
+			Title:           result.Title,
+			AddressDetail:   result.AddressDetail,
+			StartAt:         result.StartDate,
+			EndAt:           result.EndDate,
+			PriceText:       result.PriceText,
+			Category:        result.Category,
+			RegistrationURL: result.RegistrationURL,
+			IsEvent:         result.IsEvent,
+			Confidence:      result.Confidence,
+		}); err != nil {
+			return err
+		}
 	}
 
 	// Only a real event earns a venue lookup. Geocoding a non-event would spend

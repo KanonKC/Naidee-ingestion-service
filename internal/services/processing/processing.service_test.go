@@ -96,8 +96,9 @@ func TestRunStoresEventAndGeocodesVenue(t *testing.T) {
 	}
 }
 
-// A post that is not about an event still gets a row — that is how we remember
-// not to look at it again — but it must never cost a geocoding call.
+// A post that is not about an event gets no events row at all — ig_raw_posts.
+// processed_at is what remembers not to look at it again — and it must never
+// cost a geocoding call either.
 func TestRunDoesNotGeocodeNonEvents(t *testing.T) {
 	postRepo := newFakeIgRawPostRepo(samplePost(1))
 	eventRepo := newFakeEventRepo()
@@ -117,12 +118,11 @@ func TestRunDoesNotGeocodeNonEvents(t *testing.T) {
 		t.Fatalf("run failed: %v", err)
 	}
 
-	stored, ok := eventRepo.get(1)
-	if !ok {
-		t.Fatal("expected a row even for a non-event")
+	if _, ok := eventRepo.get(1); ok {
+		t.Fatal("expected no events row for a non-event")
 	}
-	if stored.IsEvent {
-		t.Fatal("expected is_event false")
+	if !postRepo.isProcessed(1) {
+		t.Fatal("expected the post to still be marked processed")
 	}
 	if geocoder.callCount() != 0 {
 		t.Fatalf("expected no geocoding for a non-event, got %d calls", geocoder.callCount())
