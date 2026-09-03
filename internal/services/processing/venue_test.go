@@ -51,7 +51,7 @@ func TestResolveVenueSurvivesGeocodeFailure(t *testing.T) {
 	service := newTestService(newFakeIgRawPostRepo(), newFakeEventRepo(), venueRepo, newFakeProcessingRunRepo(), &fakeBatchClient{}, geocoder)
 	logger := logging.New(logging.LayerService).SetContext("test", logging.SetContextOptions{Silent: true})
 
-	venueID, geocoded, err := service.resolveVenue(context.Background(), logger, "BACC")
+	venueID, geocoded, err := service.resolveVenue(context.Background(), logger, "BACC", nil)
 	if err != nil {
 		t.Fatalf("a geocode failure must not fail venue resolution: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestResolveVenueStoresAVenueWithNoMatch(t *testing.T) {
 	service := newTestService(newFakeIgRawPostRepo(), newFakeEventRepo(), venueRepo, newFakeProcessingRunRepo(), &fakeBatchClient{}, geocoder)
 	logger := logging.New(logging.LayerService).SetContext("test", logging.SetContextOptions{Silent: true})
 
-	venueID, geocoded, err := service.resolveVenue(context.Background(), logger, "ลานหน้าเซ็นทรัลเวิลด์")
+	venueID, geocoded, err := service.resolveVenue(context.Background(), logger, "ลานหน้าเซ็นทรัลเวิลด์", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestResolveVenueIgnoresAnEmptyName(t *testing.T) {
 	service := newTestService(newFakeIgRawPostRepo(), newFakeEventRepo(), venueRepo, newFakeProcessingRunRepo(), &fakeBatchClient{}, geocoder)
 	logger := logging.New(logging.LayerService).SetContext("test", logging.SetContextOptions{Silent: true})
 
-	venueID, _, err := service.resolveVenue(context.Background(), logger, " -- ")
+	venueID, _, err := service.resolveVenue(context.Background(), logger, " -- ", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

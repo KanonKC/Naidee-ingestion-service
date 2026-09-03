@@ -396,7 +396,7 @@ func (s *Service) applyResult(
 	// Only a real event earns a venue lookup. Geocoding a non-event would spend
 	// a rate-limited call on a place nobody will ever look for.
 	if result.IsEvent && result.VenueName != nil && *result.VenueName != "" {
-		venueID, geocoded, err := s.resolveVenue(ctx, logger, *result.VenueName)
+		venueID, geocoded, err := s.resolveVenue(ctx, logger, *result.VenueName, result.VenueNameTH)
 		if err != nil {
 			// The event row is already written and is useful without a venue,
 			// so this is a warning and the post still counts as processed.

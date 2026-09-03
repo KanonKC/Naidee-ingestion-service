@@ -7,6 +7,7 @@ type Venue struct {
 	ID             int64
 	Name           string
 	NameNormalized string
+	NameTH         *string
 	AddressText    *string
 	Lat            *float64
 	Lng            *float64
@@ -18,6 +19,7 @@ type Venue struct {
 type CreateVenue struct {
 	Name           string
 	NameNormalized string
+	NameTH         *string
 	AddressText    *string
 	Lat            *float64
 	Lng            *float64

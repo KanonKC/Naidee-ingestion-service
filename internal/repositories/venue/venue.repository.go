@@ -27,13 +27,13 @@ func (r *Repository) FindByNormalizedName(ctx context.Context, nameNormalized st
 	logger := r.logger.SetContext("repository.venue.findByNormalizedName", logging.SetContextOptions{Silent: true})
 
 	const query = `
-		SELECT id, name, name_normalized, address_text, lat, lng, geocoded_at
+		SELECT id, name, name_normalized, name_th, address_text, lat, lng, geocoded_at
 		FROM venues
 		WHERE name_normalized = $1`
 
 	var found Venue
 	err := r.db.QueryRow(ctx, query, nameNormalized).Scan(
-		&found.ID, &found.Name, &found.NameNormalized,
+		&found.ID, &found.Name, &found.NameNormalized, &found.NameTH,
 		&found.AddressText, &found.Lat, &found.Lng, &found.GeocodedAt,
 	)
 	if stderrors.Is(err, pgx.ErrNoRows) {
@@ -56,8 +56,8 @@ func (r *Repository) Create(ctx context.Context, request CreateVenue) (int64, er
 	logger := r.logger.SetContext("repository.venue.create", logging.SetContextOptions{Silent: true})
 
 	const query = `
-		INSERT INTO venues (name, name_normalized, address_text, lat, lng, geocoded_at)
-		VALUES ($1,$2,$3,$4,$5,$6)
+		INSERT INTO venues (name, name_normalized, name_th, address_text, lat, lng, geocoded_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
 		ON CONFLICT (name_normalized) DO UPDATE SET name = venues.name
 		RETURNING id`
 
@@ -65,6 +65,7 @@ func (r *Repository) Create(ctx context.Context, request CreateVenue) (int64, er
 	err := r.db.QueryRow(ctx, query,
 		request.Name,
 		request.NameNormalized,
+		request.NameTH,
 		request.AddressText,
 		request.Lat,
 		request.Lng,

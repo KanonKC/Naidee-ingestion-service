@@ -16,6 +16,7 @@ const systemPrompt = `คุณคือระบบสกัดข้อมู�
   "confidence": "high" | "medium" | "low",
   "title": string | null,
   "venue_name": string | null,
+  "venue_name_th": string | null,
   "address_detail": string | null,
   "start_date": string | null,
   "end_date": string | null,
@@ -39,6 +40,7 @@ const systemPrompt = `คุณคือระบบสกัดข้อมู�
 - venue_name ให้เป็นชื่อสถานที่หลักภาษาอังกฤษที่เป็นที่รู้จักทั่วไปเท่านั้น (ถ้าโพสต์เขียนเป็นไทยให้แปลงเป็นชื่อสากล เช่น "ริเวอร์ ซิตี้ แบงค็อก" -> "River City Bangkok")
 - ห้ามใช้ชื่อย่อ ให้ขยายเป็นชื่อเต็มถ้ารู้จักแน่นอน (เช่น "BACC" -> "Bangkok Art and Culture Centre") ถ้าไม่รู้จักชื่อเต็มให้คงชื่อย่อไว้ ห้ามเดามั่ว
 - ห้ามใส่รายละเอียดที่เจาะจงเกินระดับอาคาร เช่น ชั้น, ห้อง, โซน, ชื่อร้านในห้าง (เช่น "RCB Rooftop ชั้น 5 ริเวอร์ ซิตี้ แบงค็อก" -> "River City Bangkok")
+- venue_name_th ให้เป็นชื่อสถานที่เดียวกับ venue_name แต่เป็นภาษาไทยตามที่คนไทยเรียกทั่วไป (เช่น venue_name="River City Bangkok" -> venue_name_th="ริเวอร์ ซิตี้ แบงค็อก") ถ้าไม่รู้จักชื่อไทยที่ใช้เรียกทั่วไปแน่นอน ให้ null ห้ามเดามั่ว
 - ส่วนที่เจาะจงกว่านั้นที่ตัดออกจาก venue_name (ชั้น/ห้อง/โซน/ชื่อร้าน) ให้ใส่ไว้ใน address_detail แทน ตามที่เขียนในโพสต์เดิม (เช่น "Rooftop ชั้น 5") ถ้าไม่มีรายละเอียดแบบนี้ให้ address_detail=null
 - ตอบเป็น JSON object ดิบอย่างเดียว ห้ามใส่ markdown code fence หรือคำอธิบายใดๆ`
 

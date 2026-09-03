@@ -42,6 +42,7 @@ func (s *Service) resolveVenue(
 	ctx context.Context,
 	logger *logging.TLogger,
 	rawName string,
+	rawNameTH *string,
 ) (venueID int64, geocoded bool, err error) {
 	nameNormalized := normalizeVenueName(rawName)
 	if nameNormalized == "" {
@@ -65,6 +66,7 @@ func (s *Service) resolveVenue(
 	request := venue.CreateVenue{
 		Name:           strings.TrimSpace(rawName),
 		NameNormalized: nameNormalized,
+		NameTH:         trimmedOrNil(rawNameTH),
 	}
 
 	coordinates, geocodeErr := s.geocoder.Geocode(ctx, rawName)
@@ -106,4 +108,17 @@ func (s *Service) resolveVenue(
 		Data:    map[string]any{"venue_id": venueID, "name": request.Name, "cached": false, "geocoded": geocoded},
 	})
 	return venueID, geocoded, nil
+}
+
+// trimmedOrNil trims whitespace and turns an empty result into nil, so a blank
+// or missing venue_name_th is stored as NULL rather than an empty string.
+func trimmedOrNil(raw *string) *string {
+	if raw == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*raw)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
