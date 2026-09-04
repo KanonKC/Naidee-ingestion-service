@@ -383,6 +383,8 @@ func (s *Service) applyResult(
 			StartTimeKnown:  result.StartTimeKnown,
 			EndTimeKnown:    result.EndTimeKnown,
 			PriceText:       result.PriceText,
+			PriceMin:        result.PriceMin,
+			PriceMax:        result.PriceMax,
 			Categories:      result.Categories,
 			Tags:            result.Tags,
 			RegistrationURL: result.RegistrationURL,

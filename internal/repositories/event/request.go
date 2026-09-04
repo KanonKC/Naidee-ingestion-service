@@ -12,6 +12,8 @@ type UpsertEvent struct {
 	StartTimeKnown  bool
 	EndTimeKnown    bool
 	PriceText       *string
+	PriceMin        *int
+	PriceMax        *int
 	Categories      []string
 	Tags            []string
 	RegistrationURL *string

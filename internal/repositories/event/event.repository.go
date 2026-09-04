@@ -39,10 +39,10 @@ func (r *Repository) Upsert(ctx context.Context, request UpsertEvent) error {
 	const query = `
 		INSERT INTO events (
 		    raw_post_id, title, address_detail, start_at, end_at,
-		    start_time_known, end_time_known, price_text,
+		    start_time_known, end_time_known, price_text, price_min, price_max,
 		    categories, tags, registration_url, is_event, confidence, review_status
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
-		    CASE WHEN $12 AND $13 = 'high' THEN 'auto_published' ELSE 'pending' END
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+		    CASE WHEN $14 AND $15 = 'high' THEN 'auto_published' ELSE 'pending' END
 		)
 		ON CONFLICT (raw_post_id) DO UPDATE SET
 		    title            = EXCLUDED.title,
@@ -52,6 +52,8 @@ func (r *Repository) Upsert(ctx context.Context, request UpsertEvent) error {
 		    start_time_known = EXCLUDED.start_time_known,
 		    end_time_known   = EXCLUDED.end_time_known,
 		    price_text       = EXCLUDED.price_text,
+		    price_min        = EXCLUDED.price_min,
+		    price_max        = EXCLUDED.price_max,
 		    categories       = EXCLUDED.categories,
 		    tags             = EXCLUDED.tags,
 		    registration_url = EXCLUDED.registration_url,
@@ -68,6 +70,8 @@ func (r *Repository) Upsert(ctx context.Context, request UpsertEvent) error {
 		request.StartTimeKnown,
 		request.EndTimeKnown,
 		request.PriceText,
+		request.PriceMin,
+		request.PriceMax,
 		request.Categories,
 		request.Tags,
 		request.RegistrationURL,

@@ -28,6 +28,8 @@ type ExtractionResult struct {
 	StartTimeKnown  bool
 	EndTimeKnown    bool
 	PriceText       *string
+	PriceMin        *int
+	PriceMax        *int
 	Categories      []string
 	Tags            []string
 	RegistrationURL *string
@@ -67,6 +69,8 @@ type extractionPayload struct {
 	StartTimeKnown  bool    `json:"start_time_known"`
 	EndTimeKnown    bool    `json:"end_time_known"`
 	PriceText       *string  `json:"price_text"`
+	PriceMin        *int     `json:"price_min"`
+	PriceMax        *int     `json:"price_max"`
 	Categories      []string `json:"categories"`
 	Tags            []string `json:"tags"`
 	RegistrationURL *string  `json:"registration_url"`

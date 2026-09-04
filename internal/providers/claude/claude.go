@@ -194,6 +194,8 @@ func decodeEntry(rawPostID int64, entry anthropic.MessageBatchIndividualResponse
 		VenueNameTH:     payload.VenueNameTH,
 		AddressDetail:   payload.AddressDetail,
 		PriceText:       payload.PriceText,
+		PriceMin:        sanitizePrice(payload.PriceMin),
+		PriceMax:        sanitizePrice(payload.PriceMax),
 		Categories:      validateCategories(payload.Categories),
 		Tags:            cleanTags(payload.Tags),
 		RegistrationURL: payload.RegistrationURL,
@@ -320,6 +322,16 @@ func validateCategories(raw []string) []string {
 		out = append(out, id)
 	}
 	return out
+}
+
+// sanitizePrice drops prices the model had no business emitting. A negative
+// number is never a real ticket price, so it is treated the same as "not
+// stated" rather than written to the column as-is.
+func sanitizePrice(value *int) *int {
+	if value == nil || *value < 0 {
+		return nil
+	}
+	return value
 }
 
 // cleanTags trims, drops empties and dedupes — no vocabulary restriction,
